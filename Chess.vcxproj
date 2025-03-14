@@ -139,6 +139,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Chess.cpp" />
     <ClCompile Include="Rendering\FrameBuffer.cpp" />
     <ClCompile Include="Rendering\FlatTexture.cpp" />
     <ClCompile Include="Rendering\AssetRepository.cpp" />
@@ -163,6 +164,7 @@
     <ClCompile Include="Vendor\stb_image\stb_image_write.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Chess.h" />
     <ClInclude Include="Rendering\FrameBuffer.h" />
     <ClInclude Include="Rendering\FlatTexture.h" />
     <ClInclude Include="Rendering\AssetRepository.h" />
