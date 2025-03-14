@@ -44,3 +44,10 @@ struct Rectangle
 	size_t offsetX;
 	size_t offsetY;
 };
+
+struct ComparatorIvec2 {
+	bool operator()(const glm::ivec2& a, const glm::ivec2& b) const {
+		if (a.x != b.x) return a.x < b.x;
+		return a.y < b.y;
+	}
+};

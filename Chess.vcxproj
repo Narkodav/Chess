@@ -139,6 +139,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Rendering\FrameBuffer.cpp" />
     <ClCompile Include="Rendering\FlatTexture.cpp" />
     <ClCompile Include="Rendering\AssetRepository.cpp" />
     <ClCompile Include="Board.cpp" />
@@ -162,6 +163,7 @@
     <ClCompile Include="Vendor\stb_image\stb_image_write.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Rendering\FrameBuffer.h" />
     <ClInclude Include="Rendering\FlatTexture.h" />
     <ClInclude Include="Rendering\AssetRepository.h" />
     <ClInclude Include="Board.h" />
@@ -184,10 +186,6 @@
     <ClInclude Include="Vendor\imgui\imstb_truetype.h" />
     <ClInclude Include="Vendor\stb_image\stb_image.h" />
     <ClInclude Include="Vendor\stb_image\stb_image_write.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Shaders\FlatToScreen.shader" />
-    <None Include="Shaders\PulsatingHighlight.shader" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

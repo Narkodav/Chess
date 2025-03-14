@@ -223,6 +223,8 @@ int Game::run()
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
     // Initialize ImGui
     //IMGUI_CHECKVERSION();
@@ -259,7 +261,7 @@ int Game::run()
         
         m_renderer.remeshScene(m_board, m_width, m_height);
         m_renderer.setHighlight(m_board, m_mouse, m_width, m_height);
-        m_renderer.draw(m_board, m_mouse, m_window);
+        m_renderer.draw(m_board, m_mouse, m_window, m_width, m_height, m_frameTime);
     }
 
     return 0;

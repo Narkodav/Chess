@@ -4,8 +4,9 @@
 class Board
 {
 public:
-	enum class Piece : size_t
-	{
+
+    enum class Piece : size_t
+    {
         EMPTY,
 
         WHITE_PAWN,
@@ -17,11 +18,23 @@ public:
 
         BLACK_PAWN,
         BLACK_KNIGHT,
-        BLACK_BISHOP ,
-        BLACK_ROOK ,
+        BLACK_BISHOP,
+        BLACK_ROOK,
         BLACK_QUEEN,
         BLACK_KING
-	};
+    };
+
+    struct PieceData
+    {
+        Piece piece;
+        size_t moveCounter;
+        size_t lastMoved;
+
+        PieceData() : piece(Piece::EMPTY), moveCounter(0), lastMoved(0) {};
+        PieceData(Piece piece) : piece(piece), moveCounter(0), lastMoved(0) {};
+
+
+    };
 
     static inline const size_t BOARD_WIDTH = 142; //in pixels
     static inline const size_t BOARD_HEIGHT = 142;
@@ -29,15 +42,48 @@ public:
     static inline const size_t BOARD_TILE_SIZE = 16; //matches the piece size exactly
 
 private:
-    Utils::ArrayNd<Piece, 8, 8> m_board;
-    std::multimap<Piece, glm::ivec2> m_piecePositions;
+    Utils::ArrayNd<Piece, 8, 8> m_board; //for fast lookup
+    /*std::multimap<Piece, glm::ivec2> m_piecePositions;*/
+    std::map<glm::ivec2, PieceData, ComparatorIvec2> m_blackPieces;
+    std::map<glm::ivec2, PieceData, ComparatorIvec2> m_whitePieces;
 
     Rectangle m_boardRect;
-
     float m_boardTexelSize;
+
+    size_t m_totalStepCount = 0;
+    bool m_currentPlayerIsWhite = true; //inverted each step
+    bool m_playerIsWhite = true;
+    glm::ivec2 chosenPiece = glm::ivec2(-1, -1); //the piece the player chose
 
 public:
     Board() {};
+
+    bool chosePiece(glm::ivec2 pos) {
+        if (pos == glm::ivec2(-1, -1) ||
+            m_board.at(pos.x, pos.y) == Piece::EMPTY ||
+            m_currentPlayerIsWhite && m_board.at(pos.x, pos.y) > Piece::WHITE_KING ||
+           !m_currentPlayerIsWhite && m_board.at(pos.x, pos.y) < Piece::BLACK_PAWN) {
+            chosenPiece = glm::ivec2(-1, -1);
+            return false;
+        }
+        else {
+            chosenPiece = pos;
+            return true;
+        }
+    }
+
+    bool movePiece(glm::ivec2 pos) {
+        if (chosenPiece == glm::ivec2(-1, -1)) {
+            return false;
+        }
+        else {
+            m_board.at(pos.x, pos.y) = m_board.at(chosenPiece.x, chosenPiece.y);
+            m_board.at(chosenPiece.x, chosenPiece.y) = Piece::EMPTY;
+            m_totalStepCount++;
+            m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
+            return true;
+        }
+    }
 
     void setupInitialPosition(bool isWhite) {
 
@@ -52,6 +98,8 @@ public:
         size_t blackRow;
         size_t whitePawnRow;
         size_t blackPawnRow;
+        size_t queenColumn;
+        size_t kingColumn;
 
         if (isWhite)
         {
@@ -59,6 +107,8 @@ public:
             whitePawnRow = 6;
             blackRow = 0;
             blackPawnRow = 1;
+            queenColumn = 3;
+            kingColumn = 4;
         }
         else
         {
@@ -66,51 +116,53 @@ public:
             whitePawnRow = 1;
             blackRow = 7;
             blackPawnRow = 6;
+            queenColumn = 4;
+            kingColumn = 3;
         }
        
         m_board.at(0, whiteRow) = Piece::WHITE_ROOK;
-        m_piecePositions.emplace(Piece::WHITE_ROOK, glm::ivec2(0, whiteRow));
+        m_whitePieces.emplace(glm::ivec2(0, whiteRow), Piece::WHITE_ROOK);
         m_board.at(1, whiteRow) = Piece::WHITE_KNIGHT;
-        m_piecePositions.emplace(Piece::WHITE_KNIGHT, glm::ivec2(1, whiteRow));
+        m_whitePieces.emplace(glm::ivec2(1, whiteRow), Piece::WHITE_KNIGHT);
         m_board.at(2, whiteRow) = Piece::WHITE_BISHOP;
-        m_piecePositions.emplace(Piece::WHITE_BISHOP, glm::ivec2(2, whiteRow));
-        m_board.at(3, whiteRow) = Piece::WHITE_QUEEN;
-        m_piecePositions.emplace(Piece::WHITE_QUEEN, glm::ivec2(3, whiteRow));
-        m_board.at(4, whiteRow) = Piece::WHITE_KING;
-        m_piecePositions.emplace(Piece::WHITE_KING, glm::ivec2(4, whiteRow));
+        m_whitePieces.emplace(glm::ivec2(2, whiteRow), Piece::WHITE_BISHOP);
+        m_board.at(queenColumn, whiteRow) = Piece::WHITE_QUEEN;
+        m_whitePieces.emplace(glm::ivec2(queenColumn, whiteRow), Piece::WHITE_QUEEN);
+        m_board.at(kingColumn, whiteRow) = Piece::WHITE_KING;
+        m_whitePieces.emplace(glm::ivec2(kingColumn, whiteRow), Piece::WHITE_KING);
         m_board.at(5, whiteRow) = Piece::WHITE_BISHOP;
-        m_piecePositions.emplace(Piece::WHITE_BISHOP, glm::ivec2(5, whiteRow));
+        m_whitePieces.emplace(glm::ivec2(5, whiteRow), Piece::WHITE_BISHOP);
         m_board.at(6, whiteRow) = Piece::WHITE_KNIGHT;
-        m_piecePositions.emplace(Piece::WHITE_KNIGHT, glm::ivec2(6, whiteRow));
+        m_whitePieces.emplace(glm::ivec2(6, whiteRow), Piece::WHITE_KNIGHT);
         m_board.at(7, whiteRow) = Piece::WHITE_ROOK;
-        m_piecePositions.emplace(Piece::WHITE_ROOK, glm::ivec2(7, whiteRow));
+        m_whitePieces.emplace(glm::ivec2(7, whiteRow), Piece::WHITE_ROOK);
 
         for (int i = 0; i < 8; i++) {
             m_board.at(i, whitePawnRow) = Piece::WHITE_PAWN;
-            m_piecePositions.emplace(Piece::WHITE_PAWN, glm::ivec2(i, whitePawnRow));
+            m_whitePieces.emplace(glm::ivec2(i, whitePawnRow), Piece::WHITE_PAWN);
         }
 
 
         m_board.at(0, blackRow) = Piece::BLACK_ROOK;
-        m_piecePositions.emplace(Piece::BLACK_ROOK, glm::ivec2(0, blackRow));
+        m_blackPieces.emplace(glm::ivec2(0, blackRow), Piece::BLACK_ROOK);
         m_board.at(1, blackRow) = Piece::BLACK_KNIGHT;
-        m_piecePositions.emplace(Piece::BLACK_KNIGHT, glm::ivec2(1, blackRow));
+        m_blackPieces.emplace(glm::ivec2(1, blackRow), Piece::BLACK_KNIGHT);
         m_board.at(2, blackRow) = Piece::BLACK_BISHOP;
-        m_piecePositions.emplace(Piece::BLACK_BISHOP, glm::ivec2(2, blackRow));
-        m_board.at(3, blackRow) = Piece::BLACK_QUEEN;
-        m_piecePositions.emplace(Piece::BLACK_QUEEN, glm::ivec2(3, blackRow));
-        m_board.at(4, blackRow) = Piece::BLACK_KING;
-        m_piecePositions.emplace(Piece::BLACK_KING, glm::ivec2(4, blackRow));
+        m_blackPieces.emplace(glm::ivec2(2, blackRow), Piece::BLACK_BISHOP);
+        m_board.at(queenColumn, blackRow) = Piece::BLACK_QUEEN;
+        m_blackPieces.emplace(glm::ivec2(queenColumn, blackRow), Piece::BLACK_QUEEN);
+        m_board.at(kingColumn, blackRow) = Piece::BLACK_KING;
+        m_blackPieces.emplace(glm::ivec2(kingColumn, blackRow), Piece::BLACK_KING);
         m_board.at(5, blackRow) = Piece::BLACK_BISHOP;
-        m_piecePositions.emplace(Piece::BLACK_BISHOP, glm::ivec2(5, blackRow));
+        m_blackPieces.emplace(glm::ivec2(5, blackRow), Piece::BLACK_BISHOP);
         m_board.at(6, blackRow) = Piece::BLACK_KNIGHT;
-        m_piecePositions.emplace(Piece::BLACK_KNIGHT, glm::ivec2(6, blackRow));
+        m_blackPieces.emplace(glm::ivec2(6, blackRow), Piece::BLACK_KNIGHT);
         m_board.at(7, blackRow) = Piece::BLACK_ROOK;
-        m_piecePositions.emplace(Piece::BLACK_ROOK, glm::ivec2(7, blackRow));
+        m_blackPieces.emplace(glm::ivec2(7, blackRow), Piece::BLACK_ROOK);
 
         for (int i = 0; i < 8; i++) {
             m_board.at(i, blackPawnRow) = Piece::BLACK_PAWN;
-            m_piecePositions.emplace(Piece::BLACK_PAWN, glm::ivec2(i, blackPawnRow));
+            m_blackPieces.emplace(glm::ivec2(i, blackPawnRow), Piece::BLACK_PAWN);
         }
     }
 
@@ -165,7 +217,28 @@ public:
         return rect;
     }
 
-    const std::multimap<Piece, glm::ivec2>& getPiecePositions() const { return m_piecePositions; };
+    const std::map<glm::ivec2, PieceData, ComparatorIvec2>& getWhitePieces() const { return m_whitePieces; };
+    const std::map<glm::ivec2, PieceData, ComparatorIvec2>& getBlackPieces() const { return m_blackPieces; };
+
+    static inline bool isWhite(Piece piece) { return piece < Piece::BLACK_PAWN; };
+
+    template<Piece P>
+    inline std::vector<glm::ivec2> getLegalMoves(const glm::ivec2& from) const;
+
+    template<>
+    inline std::vector<glm::ivec2> getLegalMoves<Piece::WHITE_PAWN>(const glm::ivec2& from) const {
+        return getPawnMoves(from);
+    }
+
+    template<>
+    inline std::vector<glm::ivec2> getLegalMoves<Piece::BLACK_PAWN>(const glm::ivec2& from) const {
+        return getPawnMoves(from);
+    }
+
+private:
+
+    std::vector<glm::ivec2> getPawnMoves(const glm::ivec2& from) const; //might separate by color in the future
+
 
 };
 

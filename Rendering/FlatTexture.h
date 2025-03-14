@@ -39,6 +39,7 @@ class FlatTexture
 
 private:
 	std::array<glm::vec2, 4> m_vertices;
+	float m_zValue = 0.0f;
 
 	std::array<uint32_t, static_cast<size_t>(Buffers::NUM)> m_buffers;
 	uint32_t m_vao;
@@ -75,8 +76,13 @@ public:
 		m_vertices = texture.m_vertices;
 	}
 
-	FlatTexture& setVertices(const std::array<glm::vec2, 4>& vertices) { 
+	FlatTexture& setVertices(const std::array<glm::vec2, 4>& vertices) {
 		m_vertices = vertices;
+		return *this;
+	};
+
+	FlatTexture& setZValue(float zValue) {
+		m_zValue = zValue;
 		return *this;
 	};
 
@@ -137,6 +143,8 @@ public:
 		m_isSet = true;
 		return *this;
 	}
+
+	float getZValue() const { return m_zValue; };
 
 	void deleteBuffers()
 	{

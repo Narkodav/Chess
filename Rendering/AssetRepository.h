@@ -36,6 +36,7 @@ public:
     {
         FLAT_TO_SCREEN,
         PULSATING_HIGHLIGHT,
+        FLAT_TO_SCREEN_WITH_PROJECTION,
         SHADER_COUNT,
     };
 
@@ -62,6 +63,7 @@ public:
     static inline const std::array<std::string, static_cast<size_t>(Shaders::SHADER_COUNT)> shaderNames = {
             "FlatToScreen.shader",
             "PulsatingHighlight.shader",
+            "FlatToScreenWithProjection.shader",
     };
 
     // might make these configurable
