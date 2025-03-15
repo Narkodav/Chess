@@ -28,16 +28,21 @@ void Renderer::draw(const Board& board, const Mouse& mouse,
 
     m_highlightTime += deltaTime;
 
+    const auto& shaderHighlight = m_assets.getShader(AssetRepository::Shaders::HIGHLIGHT);
+    shaderHighlight.bind();
+    shaderHighlight.setUniformMat4f("uProjection", m_projection);
+    shaderHighlight.setUniform1f("uZValue", 0.1f);
     if (m_shouldHighlight)
     {
         float alpha = m_baseAlpha - (m_pulseAmount * (std::sin(m_highlightTime * m_pulseSpeed) + 1.0f) * 0.5f);
-        const auto& shaderHighlight = m_assets.getShader(AssetRepository::Shaders::PULSATING_HIGHLIGHT);
-        shaderHighlight.bind();
         shaderHighlight.setUniform1f("uAlpha", alpha);
-        shaderHighlight.setUniformMat4f("uProjection", m_projection);
-        shaderHighlight.setUniform1f("uZValue", 0.1f);
+        shaderHighlight.setUniform3f("uColor", 1.0f, 1.0f, 1.0f);
         drawHighlight();
     }
+
+    shaderHighlight.setUniform1f("uAlpha", 0.7f);
+    shaderHighlight.setUniform3f("uColor", 0.2f, 0.8f, 0.2f);
+    drawMoveHighlights();
 
     shader.bind();
     shader.setUniformMat4f("uProjection", m_projection);
@@ -69,6 +74,13 @@ void Renderer::drawPieces()
 void Renderer::drawHighlight()
 {
     m_highlightMesh.draw();
+}
+
+void Renderer::drawMoveHighlights()
+{
+    for (const auto& move : m_moveHighlights) {
+        move.draw();
+    }
 }
 
 void Renderer::setHighlight(const Board& board, const Mouse& mouse, size_t windowWidth, size_t windowHeight)
@@ -107,12 +119,12 @@ void Renderer::remeshScene(const Board& board, size_t windowWidth, size_t window
         .setTexture(&m_assets.getTexture(AssetRepository::Textures::TEXTURE_BOARD))
         .setupBuffers();
 
-    const auto& whitePieces = board.getWhitePieces();
-    const auto& blackPieces = board.getBlackPieces();
-    m_pieces.clear();
-    m_pieces.reserve(whitePieces.size() + blackPieces.size());
+    auto positions = board.getPiecePositions();
 
-    for (const auto& pair : whitePieces) {
+    m_pieces.clear();
+    m_pieces.reserve(positions.size());
+
+    for (const auto& pair : positions) {
         m_pieces.push_back(FlatTexture());
         m_pieces.back().setVertices({
             glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.x,
@@ -123,21 +135,39 @@ void Renderer::remeshScene(const Board& board, size_t windowWidth, size_t window
                 Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.y),
             glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.x,
                 Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.y) })
-                .setTexture(&m_assets.getTexture(static_cast<AssetRepository::Textures>(pair.second.piece)))
+                .setTexture(&m_assets.getTexture(static_cast<AssetRepository::Textures>(pair.second)))
             .setupBuffers();
     }
-    for (const auto& pair : blackPieces) {
-        m_pieces.push_back(FlatTexture());
-        m_pieces.back().setVertices({
-            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.x,
-                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (pair.first.y + 1)),
-            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (pair.first.x + 1),
-                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (pair.first.y + 1)),
-            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (pair.first.x + 1),
-                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.y),
-            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.x,
-                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * pair.first.y) })
-                .setTexture(&m_assets.getTexture(static_cast<AssetRepository::Textures>(pair.second.piece)))
+
+    auto moves = board.getMovePositions();
+    auto from = board.getChosePiecePosition();
+    m_moveHighlights.clear();
+    m_moveHighlights.reserve(moves.size());
+
+    for (const auto& move : moves) {
+        m_moveHighlights.push_back(FlatTexture());
+        m_moveHighlights.back().setVertices({
+            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * move.x,
+                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (move.y + 1)),
+            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (move.x + 1),
+                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (move.y + 1)),
+            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (move.x + 1),
+                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * move.y),
+            glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * move.x,
+                Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * move.y) })
             .setupBuffers();
     }
+
+    //m_moveHighlights.push_back(FlatTexture());
+    //m_moveHighlights.back().setVertices({
+    //        glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * from.x,
+    //            Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (from.y + 1)),
+    //        glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (from.x + 1),
+    //            Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (from.y + 1)),
+    //        glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * (from.x + 1),
+    //            Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * from.y),
+    //        glm::vec2(Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * from.x,
+    //            Board::BOARD_HIGHLIGHT_WIDTH + Board::BOARD_TILE_SIZE * from.y) })
+    //            .setupBuffers();
+    
 }

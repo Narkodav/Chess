@@ -22,6 +22,8 @@ class Renderer
 	float m_pulseAmount = 0.3f; // How much it pulses (0.4 means it goes from 0.4 to 0.8)
 
 	std::vector<FlatTexture> m_pieces;
+	std::vector<FlatTexture> m_moveHighlights;
+
 public:
 
 	void draw(const Board& board, const Mouse& mouse,
@@ -43,5 +45,6 @@ private:
 	void drawBoard();
 	void drawPieces();
 	void drawHighlight();
+	void drawMoveHighlights();
 };
 

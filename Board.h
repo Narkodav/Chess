@@ -1,6 +1,7 @@
 #pragma once
 #include "Common.h"
 #include "Chess.h"
+#include "Mouse.h"
 
 class Board
 {
@@ -18,40 +19,65 @@ private:
 
     bool m_currentPlayerIsWhite = true; //inverted each step
     bool m_playerIsWhite = true;
-    glm::ivec2 chosenPiece = glm::ivec2(-1, -1); //the piece the player chose
-
+    glm::ivec2 m_chosenPiece = glm::ivec2(-1, -1); //the piece the player chose
+    std::vector<Chess::Move> m_movesForChosenPiece;
 public:
     Board() {};
 
-    //bool chosePiece(glm::ivec2 pos) {
-    //    if (pos == glm::ivec2(-1, -1) ||
-    //        m_board.at(pos.x, pos.y).piece == Piece::EMPTY ||
-    //        m_currentPlayerIsWhite && m_board.at(pos.x, pos.y).piece > Piece::WHITE_KING ||
-    //       !m_currentPlayerIsWhite && m_board.at(pos.x, pos.y).piece < Piece::BLACK_PAWN) {
-    //        chosenPiece = glm::ivec2(-1, -1);
-    //        return false;
-    //    }
-    //    else {
-    //        chosenPiece = pos;
-    //        return true;
-    //    }
-    //}
+    bool choosePiece(glm::ivec2 pos) {
+        if (pos == glm::ivec2(-1, -1)) return false;
 
-    //bool movePiece(glm::ivec2 pos) {
-    //    if (chosenPiece == glm::ivec2(-1, -1)) {
-    //        return false;
-    //    }
-    //    else {
-    //        m_board.at(pos.x, pos.y) = m_board.at(chosenPiece.x, chosenPiece.y);
-    //        m_board.at(chosenPiece.x, chosenPiece.y) = Piece::EMPTY;
-    //        m_totalStepCount++;
-    //        m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
-    //        return true;
-    //    }
-    //}
+        if (m_playerIsWhite) {
+            pos.y = 7 - pos.y;
+        }
+        else pos.x = 7 - pos.x;
 
-    void setupInitialPosition() {
+        if (m_board.at(pos).piece == Chess::Piece::Type::EMPTY ||
+            m_currentPlayerIsWhite && m_board.at(pos).isBlack() ||
+           !m_currentPlayerIsWhite && m_board.at(pos).isWhite()) {
+            m_chosenPiece = glm::ivec2(-1, -1);
+            return false;
+        }
+        else {
+            m_chosenPiece = pos;
+            m_movesForChosenPiece = Chess::Calculator::getAllPossibleMoves(m_board, m_chosenPiece);
+            if (m_movesForChosenPiece.empty())
+            {
+                m_chosenPiece = glm::ivec2(-1, -1);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    bool movePiece(glm::ivec2 pos) {
+        if (m_chosenPiece == glm::ivec2(-1, -1)) {
+            return false;
+        }
+
+        if (m_playerIsWhite) {
+            pos.y = 7 - pos.y;
+        }
+        else pos.x = 7 - pos.x;
+
+        if (m_chosenPiece == pos)
+            return false;
+
+        for (auto& move : m_movesForChosenPiece)
+            if (move.to == pos)
+            {
+                m_board.move(move);
+                m_board.incrementMoveCount();
+                m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
+                return true;
+            }
+        return false;
+    }
+
+    void startNewGame(bool isWhite) {
         m_board.reset();
+        m_playerIsWhite = isWhite;
+        m_currentPlayerIsWhite = true;
     }
 
     // Helper function for mouse interaction, returns -1, -1 if no tile selected
@@ -92,18 +118,59 @@ public:
 
     const Rectangle& getBoardRect() const { return m_boardRect; };
 
-    Rectangle getTileRect(glm::ivec2 coord, float windowWidth, float windowHeight) const
+    std::vector<std::pair<glm::ivec2, Chess::Piece::Type>> getPiecePositions() const
     {
-        Rectangle rect;
+        std::vector<std::pair<glm::ivec2, Chess::Piece::Type>> positions;
+        positions.reserve(32);
+        if(m_playerIsWhite) //inverted because screen y is opposite to board y
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    if (m_board.at(x, y).piece != Chess::Piece::Type::EMPTY)
+                        positions.push_back(std::make_pair(glm::ivec2(x, 7 - y), m_board.at(x, y).piece));
+                }
+        else //inverted both x and y to rotate the board instead of mirroring it
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    if (m_board.at(x, y).piece != Chess::Piece::Type::EMPTY)
+                        positions.push_back(std::make_pair(glm::ivec2(7 - x, y), m_board.at(x, y).piece));
+                }
 
-        rect.offsetX = m_boardRect.offsetX + m_boardTexelSize * BOARD_HIGHLIGHT_WIDTH + coord.x * m_boardTexelSize * BOARD_TILE_SIZE;
-        rect.offsetY = m_boardRect.offsetY + m_boardTexelSize * BOARD_HIGHLIGHT_WIDTH + coord.y * m_boardTexelSize * BOARD_TILE_SIZE;
 
-        rect.height = m_boardTexelSize * BOARD_TILE_SIZE;
-        rect.width = m_boardTexelSize * BOARD_TILE_SIZE;
-
-        return rect;
+        return positions;
     }
 
+    void onLMBPress(const Mouse& mouse)
+    {
+        if (m_chosenPiece == glm::ivec2(-1, -1))
+            choosePiece(getTileFromMousePos(glm::ivec2(mouse.coordX, mouse.coordY)));
+        else
+        {
+            movePiece(getTileFromMousePos(glm::ivec2(mouse.coordX, mouse.coordY)));
+            m_chosenPiece = glm::ivec2(-1, -1);
+            m_movesForChosenPiece.clear();
+        }
+    }
+
+    std::vector<glm::ivec2> getMovePositions() const // to
+    {
+        std::vector<glm::ivec2> pos;
+        pos.reserve(m_movesForChosenPiece.size());
+        if (m_playerIsWhite)
+            for (auto& move : m_movesForChosenPiece)
+                pos.push_back(glm::ivec2(move.to.x, 7 - move.to.y));
+        else
+            for (auto& move : m_movesForChosenPiece)
+                pos.push_back(glm::ivec2(7 - move.to.x, move.to.y));
+        return pos;
+    }
+
+    glm::ivec2 getChosePiecePosition() const // from
+    {
+        if (m_playerIsWhite)
+            return glm::ivec2(m_chosenPiece.x, 7 - m_chosenPiece.y);
+        else return glm::ivec2(7 - m_chosenPiece.x, m_chosenPiece.y);
+    }
 };
 

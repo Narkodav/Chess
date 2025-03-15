@@ -147,9 +147,12 @@ void Game::processInputs()
     //m_world.value().handleInputs(m_mouse, m_keyboard, GameClock::deltaTime); //mouse for LMB and RMB
     //for (int i = 0; i < KEY_COUNT; i++)
     //    m_keyboard.m_keys[i].isChanged = false;
-    //m_mouse.LMB.isChanged = false;
-    //m_mouse.RMB.isChanged = false;
-    //m_mouse.scrollWheel.isChanged = false;
+    if (m_mouse.LMB.isChanged && m_mouse.LMB.state)
+        m_board.onLMBPress(m_mouse);
+
+    m_mouse.LMB.isChanged = false;
+    m_mouse.RMB.isChanged = false;
+    m_mouse.scrollWheel.isChanged = false;
 }
 
 Game::Game() : m_frameTime(0.f),
@@ -239,7 +242,7 @@ int Game::run()
     auto currentTime = std::chrono::high_resolution_clock::now();
     float frameRateUpdateCounter = 0.f;
 
-    m_board.setupInitialPosition(false);
+    m_board.startNewGame(false);
 
     while (!glfwWindowShouldClose(m_window))
     {

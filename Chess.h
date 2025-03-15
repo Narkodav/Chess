@@ -50,21 +50,54 @@ namespace Chess
         Piece& operator=(Piece&&) noexcept = default;
 	};
 
+    struct Move {
+        // For rendering and move validation
+        glm::ivec2 from;
+        glm::ivec2 to;
+
+        // All pieces that changed position in this move
+        std::vector<std::pair<glm::ivec2, Piece>> removedPieces; //tiles set to empty
+        std::vector<std::pair<glm::ivec2, Piece>> addedPieces; //tiles set to data in stored piece
+
+        // Move number in the game for history
+        uint16_t moveNumber = 0;
+
+        // Optional: evaluation/score for AI
+        float score = 0.0f;
+    };
+
 	class Board
 	{
+    public:
+        enum class State
+        {
+            NORMAL,
+            WHITE_CHECK,
+            WHITE_CHECK_MATE,
+            BLACK_CHECK,
+            BLACK_CHECK_MATE,
+            STALEMATE,
+            DRAW,
+        };
     private:
         Utils::ArrayNd<Piece, 8, 8> m_board;
         size_t m_totalMoveCount = 0;
         Move m_lastMove;
+        State m_state = State::NORMAL;
+        glm::ivec2 m_whiteKingPos;
+        glm::ivec2 m_blackKingPos;
 
     public:
-        Board() : m_board(), m_totalMoveCount(0), m_lastMove() {};
+        Board() : m_board(), m_totalMoveCount(0), m_lastMove(), m_state(State::NORMAL) {};
         Board(const Board& other) {
             for (int x = 0; x < 8; x++)
                 for (int y = 0; y < 8; y++)
                     m_board.at(x, y) = other.m_board.at(x, y);
             m_totalMoveCount = other.m_totalMoveCount;
             m_lastMove = other.m_lastMove;
+            m_state = other.m_state;
+            m_whiteKingPos = other.m_whiteKingPos;
+            m_blackKingPos = other.m_blackKingPos;
         }
 
         Board& operator=(const Board& other) {
@@ -73,6 +106,9 @@ namespace Chess
                     m_board.at(x, y) = other.m_board.at(x, y);
             m_totalMoveCount = other.m_totalMoveCount;
             m_lastMove = other.m_lastMove;
+            m_state = other.m_state;
+            m_whiteKingPos = other.m_whiteKingPos;
+            m_blackKingPos = other.m_blackKingPos;
             return *this;
         }
 
@@ -85,10 +121,49 @@ namespace Chess
         void setLastMove(Move&& move) { m_lastMove = std::move(move); };
         const Move& getLastMove() const { return m_lastMove; };
 
-        void move(glm::ivec2 from, glm::ivec2 to) //doesn't itself check if the move is legit
+        void move(const Move& move) //doesn't itself check if the move is legit
         {
-            m_board.at(to.x, to.y) = m_board.at(from.x, from.y);
-            m_board.at(from.x, from.y) = Piece();
+            for (auto& piece : move.removedPieces)
+                at(piece.first) = Piece::Type::EMPTY;
+            for (auto& piece : move.addedPieces)
+            {
+                if (piece.second.piece == Piece::Type::WHITE_KING)
+                {
+                    m_whiteKingPos = piece.first;
+                }
+                else if (piece.second.piece == Piece::Type::BLACK_KING)
+                {
+                    m_blackKingPos = piece.first;
+                }
+                at(piece.first) = piece.second;
+            }
+            if (Calculator::isCellUnderAttackWhite(*this, m_whiteKingPos))
+            {
+                m_state = State::WHITE_CHECK;
+                auto moves = Calculator::getAllPossibleMoves(*this, m_whiteKingPos);
+                if (moves.size() == 0)
+                    m_state = State::WHITE_CHECK_MATE;
+            }
+            else if (Calculator::isCellUnderAttackBlack(*this, m_blackKingPos))
+            {
+                m_state = State::BLACK_CHECK;
+                auto moves = Calculator::getAllPossibleMoves(*this, m_blackKingPos);
+                if (moves.size() == 0)
+                    m_state = State::BLACK_CHECK_MATE;
+            }
+            else
+            {
+                auto moves = Calculator::getAllPossibleMoves(*this, m_whiteKingPos);
+                if (moves.size() == 0)
+                    m_state = State::STALEMATE;
+                else
+                {
+                    moves = Calculator::getAllPossibleMoves(*this, m_blackKingPos);
+                    if (moves.size() == 0)
+                        m_state = State::STALEMATE;
+                }
+            }
+            m_lastMove = move;
         }
 
         void reset()
@@ -128,7 +203,10 @@ namespace Chess
             }
 
             m_totalMoveCount = 0;
+            m_state = State::NORMAL;
         }
+
+        State getState() const { return m_state; };
 
         Piece& at(size_t x, size_t y) { return m_board.at(x, y); };
         const Piece& at(size_t x, size_t y) const { return m_board.at(x, y); };
@@ -138,23 +216,7 @@ namespace Chess
         const Piece& at(const glm::ivec2& pos) const { return m_board.at(pos.x, pos.y); };
 	};
 
-    struct Move {
-        // For rendering and move validation
-        glm::ivec2 from;
-        glm::ivec2 to;
-
-        // All pieces that changed position in this move
-        std::vector<std::pair<glm::ivec2, Piece>> removedPieces; //tiles set to empty
-        std::vector<std::pair<glm::ivec2, Piece>> addedPieces; //tiles set to data in stored piece
-
-        // Move number in the game for history
-        uint16_t moveNumber = 0;
-
-        // Optional: evaluation/score for AI
-        float score = 0.0f;
-    };
-
-	// implements the rules of chess, takes a board ant returns either possible moves or possible next boards
+	// implements the rules of chess, takes a board and returns either possible moves or possible next boards
     // the white pieces are always at the bottom, rotate the array manually for visual representation
     // the bottom left corner is 0,0 and top right is 7,7
     class Calculator
@@ -205,7 +267,7 @@ namespace Chess
             glm::ivec2(0, -1), glm::ivec2(-1, 0)
         };
 
-
+        static inline const size_t MAXIMUM_CONSERVATIVE_MOVE_AMOUNT = 50; //may be higher but its unlikely
     public:
         //for a specific piece
         static inline std::vector<Move> getAllPossibleMoves(const Board& board, const glm::ivec2& from) {
@@ -215,6 +277,7 @@ namespace Chess
         //for all pieces on the board
         static std::vector<Move> getAllPossibleMoves(const Board& board) {
             std::vector<Move> moves;
+            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
             for (int x = 0; x < 8; x++)
                 for (int y = 0; y < 8; y++)
                 {
@@ -233,16 +296,15 @@ namespace Chess
             for (auto& move : moves)
             {
                 boards.push_back(board);
-                for (auto& piece : move.addedPieces)
-                    boards.back().at(piece.first) = piece.second;
-                for (auto& piece : move.removedPieces)
-                    boards.back().at(piece.first) = Piece::Type::EMPTY;
-                boards.back().setLastMove(std::move(move));
+                boards.back().move(move);
                 boards.back().incrementMoveCount();
             }
 
             return boards;
         }
+
+        static inline bool isCellUnderAttackWhite(const Board& board, const glm::ivec2& pos);
+        static inline bool isCellUnderAttackBlack(const Board& board, const glm::ivec2& pos);
 
     private:
 
@@ -276,6 +338,7 @@ namespace Chess
 
         template <typename ColorValidator, typename PositionGenerator>
         static inline void checkDirection(int limit, const Board& board,
+            const Piece& currentPiece,
             const glm::ivec2& from, std::vector<Move>& moves, 
             ColorValidator&& friendlyValidator, PositionGenerator&& posGen)
         {
@@ -290,7 +353,7 @@ namespace Chess
                 move.to = posNext;
                 move.removedPieces.push_back(std::make_pair(from, currentPiece));
                 move.addedPieces.push_back(std::make_pair(posNext,
-                    Piece(currentPiece.piece, currentPiece.moveCounter + 1, currentPiece.lastMoved + 1)));
+                    Piece(currentPiece.piece, currentPiece.moveCounter + 1, board.getTotalMoveCount())));
                 if (!pieceNext.isEmpty())
                 {
                     move.removedPieces.push_back(std::make_pair(posNext, pieceNext));
@@ -323,8 +386,6 @@ namespace Chess
             }
             return false;
         }
-
-
 
     private:
         using MoveFunc = std::vector<Move>(*)(const Board&, const glm::ivec2&);
