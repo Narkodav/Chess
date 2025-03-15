@@ -20,7 +20,7 @@ private:
     bool m_currentPlayerIsWhite = true; //inverted each step
     bool m_playerIsWhite = true;
     glm::ivec2 m_chosenPiece = glm::ivec2(-1, -1); //the piece the player chose
-    std::vector<Chess::Move> m_movesForChosenPiece;
+    std::unordered_map<glm::ivec2, std::vector<Chess::Move>> m_allPossibleNextMoves;
 public:
     Board() {};
 
@@ -40,8 +40,8 @@ public:
         }
         else {
             m_chosenPiece = pos;
-            m_movesForChosenPiece = Chess::Calculator::getAllPossibleMoves(m_board, m_chosenPiece);
-            if (m_movesForChosenPiece.empty())
+            const auto& moves = m_allPossibleNextMoves.find(pos);
+            if (moves == m_allPossibleNextMoves.end())
             {
                 m_chosenPiece = glm::ivec2(-1, -1);
                 return false;
@@ -62,13 +62,19 @@ public:
 
         if (m_chosenPiece == pos)
             return false;
+        const auto& movesForPiece = m_allPossibleNextMoves.find(m_chosenPiece);
 
-        for (auto& move : m_movesForChosenPiece)
+        for (const auto& move : movesForPiece->second)
             if (move.to == pos)
             {
                 m_board.move(move);
                 m_board.incrementMoveCount();
                 m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
+
+                if(m_currentPlayerIsWhite)
+                    m_allPossibleNextMoves = std::move(Chess::Calculator::getAllPossibleWhiteMovesMap(m_board));
+                else
+                    m_allPossibleNextMoves = std::move(Chess::Calculator::getAllPossibleBlackMovesMap(m_board));
                 return true;
             }
         return false;
@@ -78,6 +84,7 @@ public:
         m_board.reset();
         m_playerIsWhite = isWhite;
         m_currentPlayerIsWhite = true;
+        m_allPossibleNextMoves = Chess::Calculator::getAllPossibleWhiteMovesMap(m_board);
     }
 
     // Helper function for mouse interaction, returns -1, -1 if no tile selected
@@ -149,19 +156,22 @@ public:
         {
             movePiece(getTileFromMousePos(glm::ivec2(mouse.coordX, mouse.coordY)));
             m_chosenPiece = glm::ivec2(-1, -1);
-            m_movesForChosenPiece.clear();
         }
     }
 
     std::vector<glm::ivec2> getMovePositions() const // to
     {
+        if (m_chosenPiece == glm::ivec2(-1, -1))
+            return std::vector<glm::ivec2>();
+
+        const auto& moves = m_allPossibleNextMoves.find(m_chosenPiece)->second;
         std::vector<glm::ivec2> pos;
-        pos.reserve(m_movesForChosenPiece.size());
+        pos.reserve(moves.size());
         if (m_playerIsWhite)
-            for (auto& move : m_movesForChosenPiece)
+            for (auto& move : moves)
                 pos.push_back(glm::ivec2(move.to.x, 7 - move.to.y));
         else
-            for (auto& move : m_movesForChosenPiece)
+            for (auto& move : moves)
                 pos.push_back(glm::ivec2(7 - move.to.x, move.to.y));
         return pos;
     }
@@ -171,6 +181,22 @@ public:
         if (m_playerIsWhite)
             return glm::ivec2(m_chosenPiece.x, 7 - m_chosenPiece.y);
         else return glm::ivec2(7 - m_chosenPiece.x, m_chosenPiece.y);
+    }
+
+    bool shouldContinue() const //returns false if game is finished
+    {
+        if (!m_allPossibleNextMoves.empty())
+            return true;
+
+        if (m_board.getWhiteChecked())
+            return false; //white check mate
+
+        else if (m_board.getBlackChecked())
+            return false; //black check mate
+
+        else return false; //stalemate
+
+        return true;
     }
 };
 

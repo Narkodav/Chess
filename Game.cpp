@@ -241,6 +241,7 @@ int Game::run()
     m_runtime = 0.f;
     auto currentTime = std::chrono::high_resolution_clock::now();
     float frameRateUpdateCounter = 0.f;
+    bool playerWhite = true;
 
     m_board.startNewGame(false);
 
@@ -248,6 +249,12 @@ int Game::run()
     {
         glfwPollEvents();
         processInputs();
+
+        if (!m_board.shouldContinue())
+        {
+            playerWhite != playerWhite;
+            m_board.startNewGame(playerWhite);
+        }
 
         auto newTime = std::chrono::high_resolution_clock::now();
         m_frameTime = std::chrono::duration_cast<std::chrono::duration<float>>(newTime - currentTime).count();

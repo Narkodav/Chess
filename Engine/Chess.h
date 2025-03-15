@@ -64,49 +64,56 @@ namespace Chess
 
         // Optional: evaluation/score for AI
         float score = 0.0f;
+
+        Move() : from(glm::ivec2(0)), to(glm::ivec2(0)), removedPieces(),
+            addedPieces(), moveNumber(0), score(0.0f) {};
+
+        Move(const Move&) = default;
+        Move& operator=(const Move&) = default;
+
+        Move(Move&&) noexcept = default;
+        Move& operator=(Move&&) noexcept = default;
     };
 
 	class Board
 	{
-    public:
-        enum class State
-        {
-            NORMAL,
-            WHITE_CHECK,
-            WHITE_CHECK_MATE,
-            BLACK_CHECK,
-            BLACK_CHECK_MATE,
-            STALEMATE,
-            DRAW,
-        };
+
     private:
         Utils::ArrayNd<Piece, 8, 8> m_board;
         size_t m_totalMoveCount = 0;
         Move m_lastMove;
-        State m_state = State::NORMAL;
+        
+        bool m_isWhiteChecked = false;
+        bool m_isBlackChecked = false;
+
         glm::ivec2 m_whiteKingPos;
         glm::ivec2 m_blackKingPos;
 
     public:
-        Board() : m_board(), m_totalMoveCount(0), m_lastMove(), m_state(State::NORMAL) {};
+        Board() : m_board(), m_totalMoveCount(0), m_lastMove(),
+            m_isWhiteChecked(false), m_isBlackChecked(false) {};
         Board(const Board& other) {
             for (int x = 0; x < 8; x++)
                 for (int y = 0; y < 8; y++)
                     m_board.at(x, y) = other.m_board.at(x, y);
             m_totalMoveCount = other.m_totalMoveCount;
             m_lastMove = other.m_lastMove;
-            m_state = other.m_state;
+            m_isWhiteChecked = other.m_isWhiteChecked;
+            m_isBlackChecked = other.m_isBlackChecked;
             m_whiteKingPos = other.m_whiteKingPos;
             m_blackKingPos = other.m_blackKingPos;
         }
 
         Board& operator=(const Board& other) {
+            if (this == &other)
+                return *this;
             for (int x = 0; x < 8; x++)
                 for (int y = 0; y < 8; y++)
                     m_board.at(x, y) = other.m_board.at(x, y);
             m_totalMoveCount = other.m_totalMoveCount;
             m_lastMove = other.m_lastMove;
-            m_state = other.m_state;
+            m_isWhiteChecked = other.m_isWhiteChecked;
+            m_isBlackChecked = other.m_isBlackChecked;
             m_whiteKingPos = other.m_whiteKingPos;
             m_blackKingPos = other.m_blackKingPos;
             return *this;
@@ -121,50 +128,10 @@ namespace Chess
         void setLastMove(Move&& move) { m_lastMove = std::move(move); };
         const Move& getLastMove() const { return m_lastMove; };
 
-        void move(const Move& move) //doesn't itself check if the move is legit
-        {
-            for (auto& piece : move.removedPieces)
-                at(piece.first) = Piece::Type::EMPTY;
-            for (auto& piece : move.addedPieces)
-            {
-                if (piece.second.piece == Piece::Type::WHITE_KING)
-                {
-                    m_whiteKingPos = piece.first;
-                }
-                else if (piece.second.piece == Piece::Type::BLACK_KING)
-                {
-                    m_blackKingPos = piece.first;
-                }
-                at(piece.first) = piece.second;
-            }
-            if (Calculator::isCellUnderAttackWhite(*this, m_whiteKingPos))
-            {
-                m_state = State::WHITE_CHECK;
-                auto moves = Calculator::getAllPossibleMoves(*this, m_whiteKingPos);
-                if (moves.size() == 0)
-                    m_state = State::WHITE_CHECK_MATE;
-            }
-            else if (Calculator::isCellUnderAttackBlack(*this, m_blackKingPos))
-            {
-                m_state = State::BLACK_CHECK;
-                auto moves = Calculator::getAllPossibleMoves(*this, m_blackKingPos);
-                if (moves.size() == 0)
-                    m_state = State::BLACK_CHECK_MATE;
-            }
-            else
-            {
-                auto moves = Calculator::getAllPossibleMoves(*this, m_whiteKingPos);
-                if (moves.size() == 0)
-                    m_state = State::STALEMATE;
-                else
-                {
-                    moves = Calculator::getAllPossibleMoves(*this, m_blackKingPos);
-                    if (moves.size() == 0)
-                        m_state = State::STALEMATE;
-                }
-            }
-            m_lastMove = move;
-        }
+        const glm::ivec2& getWhiteKingPos() const { return m_whiteKingPos; };
+        const glm::ivec2& getBlackKingPos() const { return m_blackKingPos; };
+
+        void move(const Move& move);
 
         void reset()
         {
@@ -202,11 +169,16 @@ namespace Chess
                 m_board.at(i, 6) = Piece::Type::BLACK_PAWN;
             }
 
+            m_whiteKingPos = glm::ivec2(4, 0);
+            m_blackKingPos = glm::ivec2(4, 7);
+
             m_totalMoveCount = 0;
-            m_state = State::NORMAL;
+            m_isWhiteChecked = false;
+            m_isBlackChecked = false;
         }
 
-        State getState() const { return m_state; };
+        bool getWhiteChecked() const { return m_isWhiteChecked; };
+        bool getBlackChecked() const { return m_isBlackChecked; };
 
         Piece& at(size_t x, size_t y) { return m_board.at(x, y); };
         const Piece& at(size_t x, size_t y) const { return m_board.at(x, y); };
@@ -275,33 +247,151 @@ namespace Chess
         }
 
         //for all pieces on the board
-        static std::vector<Move> getAllPossibleMoves(const Board& board) {
+        static std::vector<Move> getAllPossibleWhiteMoves(const Board& board) {
             std::vector<Move> moves;
             moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
             for (int x = 0; x < 8; x++)
                 for (int y = 0; y < 8; y++)
                 {
+                    if (board.at(glm::ivec2(x, y)).isBlack() || board.at(glm::ivec2(x, y)).isEmpty())
+                        continue;
                     std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (buff.size() > 0)
-                        moves.insert(buff.begin(), buff.end(), moves.end());
+                    if (!buff.empty())
+                    {
+                        for (auto it = buff.begin(); it != buff.end();) {
+                            Board nextBoard = board;
+                            nextBoard.move(*it);
+                            if (nextBoard.getWhiteChecked()) {
+                                it = buff.erase(it);
+                            }
+                            else {
+                                ++it;
+                            }
+
+                        }
+                        if (!buff.empty())
+                            moves.insert(moves.end(), buff.begin(), buff.end());
+                    }
                 }
             return moves;
         }
 
-        static std::vector<Board> getAllPossibleBoards(const Board& board) {
-            std::vector<Board> boards;
-            auto moves = getAllPossibleMoves(board);
-            boards.reserve(moves.size());
-
-            for (auto& move : moves)
-            {
-                boards.push_back(board);
-                boards.back().move(move);
-                boards.back().incrementMoveCount();
-            }
-
-            return boards;
+        static std::vector<Move> getAllPossibleBlackMoves(const Board& board) {
+            std::vector<Move> moves;
+            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    if (board.at(glm::ivec2(x, y)).isWhite())
+                        continue;
+                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
+                    if (!buff.empty())
+                    {
+                        for (auto it = buff.begin(); it != buff.end();) {
+                            Board nextBoard = board;
+                            nextBoard.move(*it);
+                            if (nextBoard.getBlackChecked()) {
+                                it = buff.erase(it);
+                            }
+                            else {
+                                ++it;
+                            }
+                        }
+                        if (!buff.empty())
+                            moves.insert(moves.end(), buff.begin(), buff.end());
+                    }
+                }
+            return moves;
         }
+
+        //stores all the moves in a map with coord as key
+        static std::unordered_map<glm::ivec2, std::vector<Move>> getAllPossibleWhiteMovesMap(const Board& board) {
+            std::unordered_map<glm::ivec2, std::vector<Move>> moves;
+
+            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    if (board.at(glm::ivec2(x, y)).isBlack() || board.at(glm::ivec2(x, y)).isEmpty())
+                        continue;
+                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
+                    if (!buff.empty())
+                    {
+                        for (auto it = buff.begin(); it != buff.end();) {
+                            Board nextBoard = board;
+                            nextBoard.move(*it);
+                            if (nextBoard.getWhiteChecked()) {
+                                it = buff.erase(it);
+                            }
+                            else {
+                                ++it;
+                            }
+
+                        }
+                        if (!buff.empty())
+                            moves[glm::ivec2(x, y)] = std::move(buff);
+                    }
+                }
+            return moves;
+        }
+
+        //stores all the moves in a map with coord as key
+        static std::unordered_map<glm::ivec2, std::vector<Move>> getAllPossibleBlackMovesMap(const Board& board) {
+            std::unordered_map<glm::ivec2, std::vector<Move>> moves;
+
+            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    if (board.at(glm::ivec2(x, y)).isWhite())
+                        continue;
+                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
+                    if (!buff.empty())
+                    {
+                        for (auto it = buff.begin(); it != buff.end();) {
+                            Board nextBoard = board;
+                            nextBoard.move(*it);
+                            if (nextBoard.getBlackChecked()) {
+                                it = buff.erase(it);
+                            }
+                            else {
+                                ++it;
+                            }
+                        }
+                        if (!buff.empty())
+                            moves[glm::ivec2(x, y)] = std::move(buff);
+                    }
+                }
+            return moves;
+        }
+
+        //static std::vector<Move> getAllPossibleMoves(const Board& board) {
+        //    std::vector<Move> moves;
+        //    moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+        //    for (int x = 0; x < 8; x++)
+        //        for (int y = 0; y < 8; y++)
+        //        {
+        //            std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
+        //            if (buff.size() > 0)
+        //                moves.insert(buff.begin(), buff.end(), moves.end());
+        //        }
+        //    return moves;
+        //}
+
+        //static std::vector<Board> getAllPossibleBoards(const Board& board) {
+        //    std::vector<Board> boards;
+        //    auto moves = getAllPossibleMoves(board);
+        //    boards.reserve(moves.size());
+
+        //    for (auto& move : moves)
+        //    {
+        //        boards.push_back(board);
+        //        boards.back().move(move);
+        //        boards.back().incrementMoveCount();
+        //    }
+
+        //    return boards;
+        //}
 
         static inline bool isCellUnderAttackWhite(const Board& board, const glm::ivec2& pos);
         static inline bool isCellUnderAttackBlack(const Board& board, const glm::ivec2& pos);

@@ -2,13 +2,42 @@
 
 namespace Chess
 {
+
+
+    void Board::move(const Move& move) //doesn't itself check if the move is legit
+    {
+        
+        for (auto& piece : move.removedPieces)
+            at(piece.first) = Piece::Type::EMPTY;
+
+        for (auto& piece : move.addedPieces)
+        {
+            if (piece.second.piece == Piece::Type::WHITE_KING)
+            {
+                m_whiteKingPos = piece.first;
+            }
+            else if (piece.second.piece == Piece::Type::BLACK_KING)
+            {
+                m_blackKingPos = piece.first;
+            }
+            at(piece.first) = piece.second;
+        }
+        
+        if (Calculator::isCellUnderAttackWhite(*this, m_whiteKingPos))
+            m_isWhiteChecked = true;
+        else m_isWhiteChecked = false;
+        if (Calculator::isCellUnderAttackBlack(*this, m_blackKingPos))
+            m_isBlackChecked = true;
+        else m_isBlackChecked = false;
+
+        m_lastMove = move;
+    }
+
     // checks have a lot of duplicated code due to optimization reasons, need to shorten them in the future
     // this implementation is temporary, will be shortened and optimized
 
     std::vector<Move> Calculator::getWhitePawnMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::WHITE_CHECK)
-            return std::vector<Move>();
         // no need to bound check from because its a callers responsibility to ensure it
         std::vector<Move> moves;
         moves.reserve(4);
@@ -147,8 +176,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getBlackPawnMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::BLACK_CHECK)
-            return std::vector<Move>();
         // no need to bound check from because its a callers responsibility to ensure it
         std::vector<Move> moves;
         moves.reserve(4);
@@ -288,8 +315,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getWhiteKnightMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::WHITE_CHECK)
-            return std::vector<Move>();
         std::vector<Move> moves;
         moves.reserve(8);
         const auto& currentPiece = board.at(from);
@@ -543,8 +568,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getBlackKnightMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::BLACK_CHECK)
-            return std::vector<Move>();
         std::vector<Move> moves;
         moves.reserve(8);
         const auto& currentPiece = board.at(from);
@@ -799,8 +822,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getWhiteBishopMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::WHITE_CHECK)
-            return std::vector<Move>();
         std::vector<Move> moves;
         moves.reserve(4);
         const auto& currentPiece = board.at(from);
@@ -832,8 +853,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getBlackBishopMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::BLACK_CHECK)
-            return std::vector<Move>();
         std::vector<Move> moves;
         moves.reserve(4);
         const auto& currentPiece = board.at(from);
@@ -866,8 +885,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getWhiteRookMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::WHITE_CHECK)
-            return std::vector<Move>();
         std::vector<Move> moves;
         moves.reserve(4);
         const auto& currentPiece = board.at(from);
@@ -899,8 +916,6 @@ namespace Chess
 
     std::vector<Move> Calculator::getBlackRookMoves(const Board& board, const glm::ivec2& from)
     {
-        if (board.getState() == Board::State::BLACK_CHECK)
-            return std::vector<Move>();
         std::vector<Move> moves;
         moves.reserve(4);
         const auto& currentPiece = board.at(from);

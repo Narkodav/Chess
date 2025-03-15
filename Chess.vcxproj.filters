@@ -81,7 +81,10 @@
     <ClCompile Include="Rendering\FrameBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Chess.cpp">
+    <ClCompile Include="Engine\Chess.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Ai.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -155,7 +158,10 @@
     <ClInclude Include="Rendering\FrameBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Chess.h">
+    <ClInclude Include="Engine\Chess.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Ai.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
