@@ -5,6 +5,7 @@
 #include "Keyboard.h"
 #include "Board.h"
 #include "FrameRateCalculator.h"
+#include "Multithreading/ThreadPool.h"
 
 class Game
 {
@@ -17,6 +18,11 @@ private:
 	Keyboard m_keyboard;
 	Mouse m_mouse;
 	FrameRateCalculator frameRateCalc;
+	Chess::Ai m_ai;
+	MT::ThreadPool m_threadPool; //for async ai
+	bool m_waitingForAi = false;
+	std::promise<Chess::Move> m_promise;
+	std::future<Chess::Move> m_future;
 
 	float m_frameTime, m_runtime;
 	float m_aspectRatio;

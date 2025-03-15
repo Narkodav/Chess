@@ -2,8 +2,6 @@
 
 namespace Chess
 {
-
-
     void Board::move(const Move& move) //doesn't itself check if the move is legit
     {
         

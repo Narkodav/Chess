@@ -1,7 +1,4 @@
 #pragma once
-#pragma warning(disable: 4996)
-
-#define _CRT_SECURE_NO_WARNINGS
 
 //vendor
 #include "imgui.h"
@@ -12,6 +9,8 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/hash.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -27,7 +26,8 @@
 #include <string>
 #include <map>
 #include <chrono>
-#include <unordered_map>
+#include <future>
+
 //#define _DEBUG
 
 struct KeyState

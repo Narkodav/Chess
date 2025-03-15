@@ -1,5 +1,16 @@
 #pragma once
-#include "Common.h"
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/hash.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
+#include "Utilities/ArrayNd.h"
+
+#include <array>
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
 
 namespace Chess
 {
@@ -64,6 +75,8 @@ namespace Chess
 
         // Optional: evaluation/score for AI
         float score = 0.0f;
+
+        bool isCapture() const { return removedPieces.size() > addedPieces.size(); }
 
         Move() : from(glm::ivec2(0)), to(glm::ivec2(0)), removedPieces(),
             addedPieces(), moveNumber(0), score(0.0f) {};

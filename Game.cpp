@@ -147,8 +147,19 @@ void Game::processInputs()
     //m_world.value().handleInputs(m_mouse, m_keyboard, GameClock::deltaTime); //mouse for LMB and RMB
     //for (int i = 0; i < KEY_COUNT; i++)
     //    m_keyboard.m_keys[i].isChanged = false;
-    if (m_mouse.LMB.isChanged && m_mouse.LMB.state)
-        m_board.onLMBPress(m_mouse);
+    if (m_mouse.LMB.isChanged && m_mouse.LMB.state &&
+        m_board.playerIsWhite() == m_board.currentPlayerIsWhite())
+    {
+        if (m_board.onLMBPress(m_mouse) && m_board.shouldContinue())
+        {
+            m_promise = std::promise<Chess::Move>();
+            m_future = m_promise.get_future();
+            m_threadPool.pushTask([this]() {
+                m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
+                });
+            m_waitingForAi = true;
+        }
+    }
 
     m_mouse.LMB.isChanged = false;
     m_mouse.RMB.isChanged = false;
@@ -242,8 +253,21 @@ int Game::run()
     auto currentTime = std::chrono::high_resolution_clock::now();
     float frameRateUpdateCounter = 0.f;
     bool playerWhite = true;
+    size_t searcgDepth = 6;
 
-    m_board.startNewGame(false);
+    m_board.startNewGame(playerWhite);
+    m_ai.reset(!playerWhite, searcgDepth);
+    m_threadPool.init(1);
+
+    if (!playerWhite)
+    {
+        m_promise = std::promise<Chess::Move>();
+        m_future = m_promise.get_future();
+        m_threadPool.pushTask([this]() {
+            m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
+            });
+        m_waitingForAi = true;
+    }
 
     while (!glfwWindowShouldClose(m_window))
     {
@@ -252,8 +276,25 @@ int Game::run()
 
         if (!m_board.shouldContinue())
         {
-            playerWhite != playerWhite;
+            playerWhite = !playerWhite;
             m_board.startNewGame(playerWhite);
+            m_ai.reset(!playerWhite, searcgDepth);
+            if (!playerWhite)
+            {
+                m_promise = std::promise<Chess::Move>();
+                m_future = m_promise.get_future();
+                m_threadPool.pushTask([this]() {
+                    m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
+                    });
+                m_waitingForAi = true;
+            }
+        }
+
+        if (m_waitingForAi && m_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        {
+            Chess::Move aiMove = m_future.get();
+            m_board.makeMove(aiMove);
+            m_waitingForAi = false;
         }
 
         auto newTime = std::chrono::high_resolution_clock::now();
@@ -274,5 +315,6 @@ int Game::run()
         m_renderer.draw(m_board, m_mouse, m_window, m_width, m_height, m_frameTime);
     }
 
+    m_threadPool.shutdown();
     return 0;
 }

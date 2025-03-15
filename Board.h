@@ -1,6 +1,7 @@
 #pragma once
 #include "Common.h"
-#include "Chess.h"
+#include "Engine/Chess.h"
+#include "Engine/Ai.h"
 #include "Mouse.h"
 
 class Board
@@ -15,6 +16,7 @@ public:
 private:
     Chess::Board m_board;
     Rectangle m_boardRect;
+
     float m_boardTexelSize;
 
     bool m_currentPlayerIsWhite = true; //inverted each step
@@ -80,6 +82,28 @@ public:
         return false;
     }
 
+    bool makeMove(const Chess::Move& move)
+    {
+        const auto& movesForPiece = m_allPossibleNextMoves.find(move.from);
+        if (movesForPiece == m_allPossibleNextMoves.end())
+            __debugbreak();
+
+        for (const auto& moveIt : movesForPiece->second)
+            if (moveIt.to == move.to && moveIt.from == move.from)
+            {
+                m_board.move(move);
+                m_board.incrementMoveCount();
+                m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
+
+                if (m_currentPlayerIsWhite)
+                    m_allPossibleNextMoves = std::move(Chess::Calculator::getAllPossibleWhiteMovesMap(m_board));
+                else
+                    m_allPossibleNextMoves = std::move(Chess::Calculator::getAllPossibleBlackMovesMap(m_board));
+                return true;
+            }
+        return false;
+    }
+
     void startNewGame(bool isWhite) {
         m_board.reset();
         m_playerIsWhite = isWhite;
@@ -125,6 +149,11 @@ public:
 
     const Rectangle& getBoardRect() const { return m_boardRect; };
 
+    const Chess::Board& getBoard() const { return m_board; };
+
+    const bool& playerIsWhite() const { return m_playerIsWhite; };
+    const bool& currentPlayerIsWhite() const { return m_currentPlayerIsWhite; };
+
     std::vector<std::pair<glm::ivec2, Chess::Piece::Type>> getPiecePositions() const
     {
         std::vector<std::pair<glm::ivec2, Chess::Piece::Type>> positions;
@@ -148,15 +177,17 @@ public:
         return positions;
     }
 
-    void onLMBPress(const Mouse& mouse)
+    bool onLMBPress(const Mouse& mouse) //returns true on move
     {
         if (m_chosenPiece == glm::ivec2(-1, -1))
             choosePiece(getTileFromMousePos(glm::ivec2(mouse.coordX, mouse.coordY)));
         else
         {
-            movePiece(getTileFromMousePos(glm::ivec2(mouse.coordX, mouse.coordY)));
+            bool moved = movePiece(getTileFromMousePos(glm::ivec2(mouse.coordX, mouse.coordY)));
             m_chosenPiece = glm::ivec2(-1, -1);
+            return moved;
         }
+        return false;
     }
 
     std::vector<glm::ivec2> getMovePositions() const // to
