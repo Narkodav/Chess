@@ -77,7 +77,7 @@ void Game::windowResizeCallback(int width, int height)
     m_height = height;
     m_aspectRatio = (double)m_width / m_height;
     glViewport(0, 0, m_width, m_height);
-    m_board.setBoardRect(m_width, m_height);
+    m_board.getWriteAccess()->setBoardRect(m_width, m_height);
 }
 
 void Game::mouseMoveCallback(double xpos, double ypos)
@@ -136,28 +136,33 @@ void Game::mouseButtonCallback(int button, int action, int mods)
 
 void Game::processInputs()
 {
-    //if (m_keyboard.m_keys[KEY_ESC].isChanged)
-    //    glfwSetWindowShouldClose(m_window, GLFW_TRUE);
-
-    //if (m_keyboard.m_keys[KEY_PLAYER_ACTION_FLAG].isChanged)
-    //{
-    //    m_keyboard.m_keys[KEY_PLAYER_ACTION_FLAG].state = 1;
-    //}
-
-    //m_world.value().handleInputs(m_mouse, m_keyboard, GameClock::deltaTime); //mouse for LMB and RMB
-    //for (int i = 0; i < KEY_COUNT; i++)
-    //    m_keyboard.m_keys[i].isChanged = false;
-    if (m_mouse.LMB.isChanged && m_mouse.LMB.state &&
-        m_board.playerIsWhite() == m_board.currentPlayerIsWhite())
+    if (m_keyboard.m_keys[static_cast<size_t>(Keyboard::Keys::KEY_ESC)].isChanged &&
+        m_keyboard.m_keys[static_cast<size_t>(Keyboard::Keys::KEY_ESC)].state)
     {
-        if (m_board.onLMBPress(m_mouse) && m_board.shouldContinue())
+        if(m_gameState == State::PAUSED)
         {
-            m_promise = std::promise<Chess::Move>();
-            m_future = m_promise.get_future();
-            m_threadPool.pushTask([this]() {
-                m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
-                });
-            m_waitingForAi = true;
+            m_gameState = State::PLAYING;
+            m_ai.setPaused(false);
+        }
+        else if(m_gameState == State::PLAYING)
+        {
+            m_gameState = State::PAUSED;
+            m_ai.setPaused(true);
+        }
+    }
+
+    for (int i = 0; i < static_cast<size_t>(Keyboard::Keys::KEY_COUNT); i++)
+        m_keyboard.m_keys[i].isChanged = false;
+
+    if (m_gameState == State::PLAYING)
+    {
+        auto access = m_board.getWriteAccess();
+        if (m_mouse.LMB.isChanged && m_mouse.LMB.state &&
+            access->playerIsWhite() == access->currentPlayerIsWhite() &&
+            access->onLMBPress(m_mouse) && access->shouldContinue())
+        {
+            m_ai.getBestMoveAsync(access->getBoard(), m_threadPool,
+                [this](Chess::Move move) {asyncMoveCallback(move); });
         }
     }
 
@@ -205,9 +210,9 @@ m_width(1000), m_height(800)
 
 Game::~Game()
 {
-    //ImGui_ImplOpenGL3_Shutdown();
-    //ImGui_ImplGlfw_Shutdown();
-    //ImGui::DestroyContext();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     glfwTerminate();
 }
 
@@ -239,80 +244,97 @@ int Game::run()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
+    glViewport(0, 0, m_width, m_height);
 
     // Initialize ImGui
-    //IMGUI_CHECKVERSION();
-    //ImGui::CreateContext();
-    //ImGui_ImplGlfw_InitForOpenGL(m_window, true);
-    //ImGui_ImplOpenGL3_Init("#version 130");
-    frameRateCalc.setFrameTimeBuffer(100);
-    m_renderer.loadAssets();
-    m_board.setBoardRect(m_width, m_height);
-    //float accumulator = 0.f;
-    m_runtime = 0.f;
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark(); // or StyleColorsLight()
+    ImGui_ImplGlfw_InitForOpenGL(m_window, true);
+    ImGui_ImplOpenGL3_Init("#version 130");
+    ImGui::GetStyle().ScaleAllSizes(1.0f);  // Adjust if needed for DPI
+
     auto currentTime = std::chrono::high_resolution_clock::now();
     float frameRateUpdateCounter = 0.f;
     bool playerWhite = true;
-    size_t searcgDepth = 6;
 
-    m_board.startNewGame(playerWhite);
-    m_ai.reset(!playerWhite, searcgDepth);
-    m_threadPool.init(1);
-
-    if (!playerWhite)
     {
-        m_promise = std::promise<Chess::Move>();
-        m_future = m_promise.get_future();
-        m_threadPool.pushTask([this]() {
-            m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
-            });
-        m_waitingForAi = true;
+        auto boardAccess = m_board.getWriteAccess();
+        frameRateCalc.setFrameTimeBuffer(100);
+        m_renderer.loadAssets();
+        boardAccess->setBoardRect(m_width, m_height);
+        //float accumulator = 0.f;
+        m_runtime = 0.f;
+
+        m_threadPool.init(1);
     }
 
     while (!glfwWindowShouldClose(m_window))
     {
+        ImGui::GetIO().DisplaySize = ImVec2((float)m_width, (float)m_height);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
         glfwPollEvents();
+        glClearColor(AssetRepository::backgroundColor.x,
+            AssetRepository::backgroundColor.y,
+            AssetRepository::backgroundColor.z,
+            AssetRepository::backgroundColor.w);
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         processInputs();
 
-        if (!m_board.shouldContinue())
+        if (m_gameState != State::PLAYING) {
+            renderMenus();
+        }
+        else
         {
-            playerWhite = !playerWhite;
-            m_board.startNewGame(playerWhite);
-            m_ai.reset(!playerWhite, searcgDepth);
-            if (!playerWhite)
+            auto access = m_board.getWriteAccess();
+            if (!access->shouldContinue())
             {
-                m_promise = std::promise<Chess::Move>();
-                m_future = m_promise.get_future();
-                m_threadPool.pushTask([this]() {
-                    m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
-                    });
-                m_waitingForAi = true;
+                //playerWhite = !playerWhite;
+                //m_board.startNewGame(playerWhite);
+                //m_ai.reset(!playerWhite, m_aiDepth);
+                //if (!playerWhite)
+                //{
+                //    m_promise = std::promise<Chess::Move>();
+                //    m_future = m_promise.get_future();
+                //    m_threadPool.pushTask([this]() {
+                //        m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
+                //        });
+                //    m_waitingForAi = true;
+                //}
+                m_ai.abortAndWait();
+                if (access->getBoard().getBlackChecked() == access->playerIsWhite())
+                    m_playerWon = true;
+                else m_playerWon = false;
+                m_gameState = State::GAME_OVER;
             }
+
+            auto newTime = std::chrono::high_resolution_clock::now();
+            m_frameTime = std::chrono::duration_cast<std::chrono::duration<float>>(newTime - currentTime).count();
+            m_runtime += m_frameTime;
+            currentTime = newTime;
+
+            if (m_runtime >= frameRateUpdateCounter)
+            {
+                frameRateCalc.addFrameTime(m_frameTime);
+                frameRateCalc.updateFrameRate();
+                //frameRateCalc.printFrameRate();
+                frameRateUpdateCounter += 3;
+            }
+
+            m_renderer.remeshScene(*access, m_width, m_height);
+            m_renderer.setHighlight(*access, m_mouse, m_width, m_height);
+            m_renderer.draw(*access, m_mouse, m_window, m_width, m_height, m_frameTime);
         }
 
-        if (m_waitingForAi && m_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-        {
-            Chess::Move aiMove = m_future.get();
-            m_board.makeMove(aiMove);
-            m_waitingForAi = false;
-        }
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(m_window);
 
-        auto newTime = std::chrono::high_resolution_clock::now();
-        m_frameTime = std::chrono::duration_cast<std::chrono::duration<float>>(newTime - currentTime).count();
-        m_runtime += m_frameTime;
-        currentTime = newTime;
-
-        if (m_runtime >= frameRateUpdateCounter)
-        {
-            frameRateCalc.addFrameTime(m_frameTime);
-            frameRateCalc.updateFrameRate();
-            //frameRateCalc.printFrameRate();
-            frameRateUpdateCounter += 3;
-        }
-        
-        m_renderer.remeshScene(m_board, m_width, m_height);
-        m_renderer.setHighlight(m_board, m_mouse, m_width, m_height);
-        m_renderer.draw(m_board, m_mouse, m_window, m_width, m_height, m_frameTime);
     }
 
     m_threadPool.shutdown();

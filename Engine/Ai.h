@@ -1,5 +1,9 @@
 #pragma once
+#include <functional>
+#include <atomic>
+
 #include "Chess.h"
+#include "Multithreading/ThreadPool.h"
 
 namespace Chess
 {
@@ -187,26 +191,79 @@ namespace Chess
     private:
         size_t m_searchDepth;
         bool m_isWhite; // Which side the AI plays
+        std::atomic<bool> m_shouldAbort = false;
+        std::atomic<bool> m_isPaused{ false };
+        std::atomic<size_t> m_pendingTasks;
+        std::mutex m_pauseMutex;
+        std::condition_variable m_pauseCondition;
 
     public:
 
+        void abortAndWait()
+        {
+            m_shouldAbort = true;
+            if(m_isPaused)
+            {
+                m_isPaused = false;
+                m_pauseCondition.notify_all();
+            }
+            while (m_pendingTasks.load() > 0)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            m_shouldAbort = false;
+        }
+
+        void setPaused(bool paused) {
+            m_isPaused = paused;
+            if (!paused) {
+                m_pauseCondition.notify_all(); // Wake up paused calculation
+            }
+        }
+
         void reset(bool playingWhite, size_t searchDepth = 4)
         {
+            m_shouldAbort = false;
             m_isWhite = playingWhite;
             m_searchDepth = searchDepth;
         }
 
-        Move getBestMove(const Chess::Board& board) {
+        //makes a copy of the board for a completely isolated async search, not an expensive operation overall
+        void getBestMoveAsync(Board board, MT::ThreadPool& pool, std::function<void(Move)> callback)
+        {
+            pool.pushTask([this, board = std::move(board), callback]() {
+                Move move;
+                try
+                {
+                    if (m_pendingTasks == 1)
+                        __debugbreak();
+                    m_pendingTasks++;
+                    move = getBestMove(board);
+                    m_pendingTasks--;
+                    callback(move);
+                }
+                catch (std::exception& e)
+                {
+                    m_pendingTasks--;
+                    if (e.what() == "Abort")
+                        return;
+                }
+
+                });
+        }
+
+        Move getBestMove(const Board& board) {
+
             auto possibleMoves = m_isWhite ?
-                Chess::Calculator::getAllPossibleWhiteMoves(board) :  // Using vector version
-                Chess::Calculator::getAllPossibleBlackMoves(board);   // Using vector version
+                Calculator::getAllPossibleWhiteMoves(board) :  // Using vector version
+                Calculator::getAllPossibleBlackMoves(board);   // Using vector version
 
             sortMoves(possibleMoves, board);
             Move bestMove;
             int bestScore = INT_MIN;
 
             for (const auto& move : possibleMoves) {
-                Chess::Board nextBoard = board;
+                Board nextBoard = board;
                 nextBoard.move(move);
 
                 int score = -minimax(nextBoard, m_searchDepth - 1,
@@ -220,9 +277,16 @@ namespace Chess
             return bestMove;
         }
 
+        size_t getPendingTasks() const
+        {
+            return m_pendingTasks.load();
+        }
+
     private:
         int minimax(Chess::Board& board, int depth, bool isWhite,
             int alpha, int beta) {
+            runtimeStateChecks();
+
             if (depth == 0)
                 return evaluatePosition(board, isWhite);
 
@@ -331,6 +395,20 @@ namespace Chess
 
             return score;
         }
-    };
 
+        inline void runtimeStateChecks() {
+            if (m_isPaused) {
+                std::unique_lock<std::mutex> lock(m_pauseMutex);
+                while (m_isPaused) {
+                    // Wait for 100ms at a time
+                    m_pauseCondition.wait_for(lock, std::chrono::milliseconds(100), [this]() {
+                        return !m_isPaused;
+                        });
+                }
+            }
+            if (m_shouldAbort) {
+                throw std::runtime_error("Abort");
+            }
+        }
+    };
 }

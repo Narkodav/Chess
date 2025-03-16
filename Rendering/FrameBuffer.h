@@ -157,6 +157,8 @@ public:
             throw std::runtime_error("Framebuffer is not complete!");
         }
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
         m_isInit = true;
     }
 

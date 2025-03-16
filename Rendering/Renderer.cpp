@@ -4,13 +4,6 @@
 void Renderer::draw(const Board& board, const Mouse& mouse, 
     GLFWwindow* windowHandle, size_t windowWidth, size_t windowHeight, float deltaTime)
 {
-    glClearColor(AssetRepository::backgroundColor.x,
-        AssetRepository::backgroundColor.y,
-        AssetRepository::backgroundColor.z,
-        AssetRepository::backgroundColor.w);
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     //ImGui_ImplOpenGL3_NewFrame();
     //ImGui_ImplGlfw_NewFrame();
     //ImGui::NewFrame();
@@ -56,8 +49,6 @@ void Renderer::draw(const Board& board, const Mouse& mouse,
         m_frameBuffer.drawToScreen((windowWidth - windowHeight) / 2, 0, windowHeight, windowHeight);
     else
         m_frameBuffer.drawToScreen(0, (windowHeight - windowWidth) / 2, windowWidth, windowWidth);
-
-    glfwSwapBuffers(windowHandle);
 }
 
 void Renderer::drawBoard()
