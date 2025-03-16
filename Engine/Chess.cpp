@@ -984,10 +984,10 @@ namespace Chess
                 if (movedTo.isWhite() && !movedTo.isEmpty() || x == from.x && y == from.y)
                     continue;
 
-                if (isCellUnderAttackWhite(board, glm::ivec2(x, y)))
-                    continue;
+                //no need for this check because it happens in get all possible moves
+                //if (isCellUnderAttackWhite(board, glm::ivec2(x, y)))
+                //    continue;
 
-                //all checks passed
                 Move move;
                 move.from = from;
                 move.to = buf;
@@ -1069,10 +1069,10 @@ namespace Chess
                 if (movedTo.isBlack() || x == from.x && y == from.y)
                     continue;
 
-                if (isCellUnderAttackBlack(board, glm::ivec2(x, y)))
-                    continue;
+                //no need for this check because it happens in get all possible moves
+                //if (isCellUnderAttackBlack(board, glm::ivec2(x, y)))
+                //    continue;
 
-                //all checks passed
                 Move move;
                 move.from = from;
                 move.to = buf;

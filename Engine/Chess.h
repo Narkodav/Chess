@@ -1,16 +1,11 @@
 #pragma once
-#define GLM_ENABLE_EXPERIMENTAL
-#include "glm/gtx/hash.hpp"
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
-
 #include "Utilities/ArrayNd.h"
 
-#include <array>
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+
+#include "Constants.h"
 
 namespace Chess
 {
@@ -207,53 +202,6 @@ namespace Chess
     class Calculator
     {
     public:
-        // Board orientation constants
-        static inline const glm::ivec2 BOTTOM_LEFT  = glm::ivec2( 0,  0);
-        static inline const glm::ivec2 TOP_RIGHT    = glm::ivec2( 7,  7);
-        static inline const glm::ivec2 LEFT         = glm::ivec2(-1,  0);
-        static inline const glm::ivec2 RIGHT        = glm::ivec2( 1,  0);
-        static inline const glm::ivec2 UP           = glm::ivec2( 0,  1);
-        static inline const glm::ivec2 DOWN         = glm::ivec2( 0, -1);
-
-        // Pawn movement directions
-        static inline const glm::ivec2 PAWN_DIRECTION_WHITE = glm::ivec2(0, 1);
-        static inline const glm::ivec2 PAWN_DIRECTION_BLACK = glm::ivec2(0, -1);
-
-        static inline const size_t WHITE_EN_PASSANT_RANK = 4;
-        static inline const size_t BLACK_EN_PASSANT_RANK = 3;
-
-        static inline const size_t WHITE_PROMOTION_RANK = 7;
-        static inline const size_t BLACK_PROMOTION_RANK = 0;
-
-        // Pawn capture directions
-        static inline const glm::ivec2 PAWN_CAPTURE_WHITE_LEFT = glm::ivec2(-1, 1);
-        static inline const glm::ivec2 PAWN_CAPTURE_WHITE_RIGHT = glm::ivec2(1, 1);
-
-        static inline const glm::ivec2 PAWN_CAPTURE_BLACK_LEFT = glm::ivec2(-1, -1);
-        static inline const glm::ivec2 PAWN_CAPTURE_BLACK_RIGHT = glm::ivec2(1, -1);
-
-        // Knight move offsets
-        static inline const std::array<glm::ivec2, 8> KNIGHT_MOVES = {
-            glm::ivec2(1, 2), glm::ivec2(-1, 2),    //FORWARD
-            glm::ivec2(1, -2), glm::ivec2(-1, -2),  //BACKWARD
-            glm::ivec2(2, 1), glm::ivec2(2, -1),    //RIGHT
-            glm::ivec2(-2, 1), glm::ivec2(-2, -1)   //LEFT
-        };
-
-        // Diagonal directions (bishop/queen)
-        static inline const std::array<glm::ivec2, 4> DIAGONAL_DIRECTIONS = {
-            glm::ivec2(1, 1), glm::ivec2(1, -1),
-            glm::ivec2(-1, -1), glm::ivec2(-1, 1)
-        };
-
-        // Straight directions (rook/queen)
-        static inline const std::array<glm::ivec2, 4> STRAIGHT_DIRECTIONS = {
-            glm::ivec2(0, 1), glm::ivec2(1, 0),
-            glm::ivec2(0, -1), glm::ivec2(-1, 0)
-        };
-
-        static inline const size_t MAXIMUM_CONSERVATIVE_MOVE_AMOUNT = 50; //may be higher but its unlikely
-    public:
         //for a specific piece
         static inline std::vector<Move> getAllPossibleMoves(const Board& board, const glm::ivec2& from) {
             return moveFuncs[static_cast<size_t>(board.at(from).piece)](board, from);
@@ -378,33 +326,61 @@ namespace Chess
             return moves;
         }
 
-        //static std::vector<Move> getAllPossibleMoves(const Board& board) {
-        //    std::vector<Move> moves;
-        //    moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-        //    for (int x = 0; x < 8; x++)
-        //        for (int y = 0; y < 8; y++)
-        //        {
-        //            std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-        //            if (buff.size() > 0)
-        //                moves.insert(buff.begin(), buff.end(), moves.end());
-        //        }
-        //    return moves;
-        //}
+        //optimized for ai, since it already needs boards
+        static std::vector<Board> getAllPossibleNextBoardsWhite(const Board& board) {
+            std::vector<Board> boards;
+            boards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    if (board.at(glm::ivec2(x, y)).isBlack() || board.at(glm::ivec2(x, y)).isEmpty())
+                        continue;
+                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
+                    if (!buff.empty())
+                    {
+                        for (auto it = buff.begin(); it != buff.end();) {
+                            Board nextBoard = board;
+                            nextBoard.move(*it);
+                            if (nextBoard.getWhiteChecked()) {
+                                it = buff.erase(it);
+                            }
+                            else {
+                                boards.push_back(std::move(nextBoard));
+                                ++it;
+                            }
+                        }
+                    }
+                }
+            return boards;
+        }
 
-        //static std::vector<Board> getAllPossibleBoards(const Board& board) {
-        //    std::vector<Board> boards;
-        //    auto moves = getAllPossibleMoves(board);
-        //    boards.reserve(moves.size());
-
-        //    for (auto& move : moves)
-        //    {
-        //        boards.push_back(board);
-        //        boards.back().move(move);
-        //        boards.back().incrementMoveCount();
-        //    }
-
-        //    return boards;
-        //}
+        static std::vector<Board> getAllPossibleNextBoardsBlack(const Board& board) {
+            std::vector<Board> boards;
+            boards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                {
+                    //empty check is actually redundant since isWhite returns true on empty for enum reasons
+                    if (board.at(glm::ivec2(x, y)).isWhite() || board.at(glm::ivec2(x, y)).isEmpty())
+                        continue;
+                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
+                    if (!buff.empty())
+                    {
+                        for (auto it = buff.begin(); it != buff.end();) {
+                            Board nextBoard = board;
+                            nextBoard.move(*it);
+                            if (nextBoard.getBlackChecked()) {
+                                it = buff.erase(it);
+                            }
+                            else {
+                                boards.push_back(std::move(nextBoard));
+                                ++it;
+                            }
+                        }
+                    }
+                }
+            return boards;
+        }
 
         static inline bool isCellUnderAttackWhite(const Board& board, const glm::ivec2& pos);
         static inline bool isCellUnderAttackBlack(const Board& board, const glm::ivec2& pos);

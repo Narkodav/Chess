@@ -3,7 +3,12 @@
 #include <atomic>
 
 #include "Chess.h"
+#include "Constants.h"
 #include "Multithreading/ThreadPool.h"
+
+#ifdef _DEBUG
+#include "Profiler.h"
+#endif
 
 namespace Chess
 {
@@ -25,150 +30,6 @@ namespace Chess
             -500,   //BLACK_ROOK
             -900,   //BLACK_QUEEN
             0       //BLACK_KING
-        };
-
-        // Piece-square tables (from white's perspective)
-        static inline const std::array<int, 64> emptyTable = {
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-            0,  0,  0,  0,  0,  0,  0,  0,
-        };
-
-        static inline const std::array<int, 64> whitePawnTable = {
-            0,  0,  0,  0,  0,  0,  0,  0,
-            50, 50, 50, 50, 50, 50, 50, 50,
-            10, 10, 20, 30, 30, 20, 10, 10,
-            5,  5, 10, 25, 25, 10,  5,  5,
-            0,  0,  0, 20, 20,  0,  0,  0,
-            5, -5,-10,  0,  0,-10, -5,  5,
-            5, 10, 10,-20,-20, 10, 10,  5,
-            0,  0,  0,  0,  0,  0,  0,  0
-        };
-
-        static inline const std::array<int, 64> whiteKnightTable = {
-            -50,-40,-30,-30,-30,-30,-40,-50,
-            -40,-20,  0,  0,  0,  0,-20,-40,
-            -30,  0, 10, 15, 15, 10,  0,-30,
-            -30,  5, 15, 20, 20, 15,  5,-30,
-            -30,  0, 15, 20, 20, 15,  0,-30,
-            -30,  5, 10, 15, 15, 10,  5,-30,
-            -40,-20,  0,  5,  5,  0,-20,-40,
-            -50,-40,-30,-30,-30,-30,-40,-50
-        };
-
-        static inline const std::array<int, 64> whiteBishopTable = {
-            -20,-10,-10,-10,-10,-10,-10,-20,
-            -10,  0,  0,  0,  0,  0,  0,-10,
-            -10,  0,  5, 10, 10,  5,  0,-10,
-            -10,  5,  5, 10, 10,  5,  5,-10,
-            -10,  0, 10, 10, 10, 10,  0,-10,
-            -10, 10, 10, 10, 10, 10, 10,-10,
-            -10,  5,  0,  0,  0,  0,  5,-10,
-            -20,-10,-10,-10,-10,-10,-10,-20
-        };
-
-        static inline const std::array<int, 64> whiteRookTable = {
-            0,  0,  0,  0,  0,  0,  0,  0,
-            5, 10, 10, 10, 10, 10, 10,  5,
-            -5,  0,  0,  0,  0,  0,  0, -5,
-            -5,  0,  0,  0,  0,  0,  0, -5,
-            -5,  0,  0,  0,  0,  0,  0, -5,
-            -5,  0,  0,  0,  0,  0,  0, -5,
-            -5,  0,  0,  0,  0,  0,  0, -5,
-            0,  0,  0,  5,  5,  0,  0,  0
-        };
-
-        static inline const std::array<int, 64> whiteQueenTable = {
-            -20,-10,-10, -5, -5,-10,-10,-20,
-            -10,  0,  0,  0,  0,  0,  0,-10,
-            -10,  0,  5,  5,  5,  5,  0,-10,
-            -5,  0,  5,  5,  5,  5,  0, -5,
-            0,  0,  5,  5,  5,  5,  0, -5,
-            -10,  5,  5,  5,  5,  5,  0,-10,
-            -10,  0,  5,  0,  0,  0,  0,-10,
-            -20,-10,-10, -5, -5,-10,-10,-20
-        };
-
-        static inline const std::array<int, 64> whiteKingTable = {
-            -30,-40,-40,-50,-50,-40,-40,-30,
-            -30,-40,-40,-50,-50,-40,-40,-30,
-            -30,-40,-40,-50,-50,-40,-40,-30,
-            -30,-40,-40,-50,-50,-40,-40,-30,
-            -20,-30,-30,-40,-40,-30,-30,-20,
-            -10,-20,-20,-20,-20,-20,-20,-10,
-            20, 20,  0,  0,  0,  0, 20, 20,
-            20, 30, 10,  0,  0, 10, 30, 20
-        };
-
-        static inline const std::array<int, 64> blackPawnTable = {
-            0,  0,  0,  0,  0,  0,  0,  0,
-            -5,-10,-10, 20, 20,-10,-10, -5,
-            -5,  5, 10,  0,  0, 10,  5, -5,
-            0,  0,  0,-20,-20,  0,  0,  0,
-            -5, -5,-10,-25,-25,-10, -5, -5,
-            -10,-10,-20,-30,-30,-20,-10,-10,
-            -50,-50,-50,-50,-50,-50,-50,-50,
-            0,  0,  0,  0,  0,  0,  0,  0
-        };
-
-        static inline const std::array<int, 64> blackKnightTable = {
-            50, 40, 30, 30, 30, 30, 40, 50,
-            40, 20,  0, -5, -5,  0, 20, 40,
-            30, -5,-10,-15,-15,-10, -5, 30,
-            30,  0,-15,-20,-20,-15,  0, 30,
-            30, -5,-15,-20,-20,-15, -5, 30,
-            30,  0,-10,-15,-15,-10,  0, 30,
-            40, 20,  0,  0,  0,  0, 20, 40,
-            50, 40, 30, 30, 30, 30, 40, 50
-        };
-
-        static inline const std::array<int, 64> blackBishopTable = {
-            20, 10, 10, 10, 10, 10, 10, 20,
-            10, -5,  0,  0,  0,  0, -5, 10,
-            10,-10,-10,-10,-10,-10,-10, 10,
-            10,  0,-10,-10,-10,-10,  0, 10,
-            10, -5, -5,-10,-10, -5, -5, 10,
-            10,  0, -5,-10,-10, -5,  0, 10,
-            10,  0,  0,  0,  0,  0,  0, 10,
-            20, 10, 10, 10, 10, 10, 10, 20
-        };
-
-        static inline const std::array<int, 64> blackRookTable = {
-            0,  0,  0, -5, -5,  0,  0,  0,
-            5,  0,  0,  0,  0,  0,  0,  5,
-            5,  0,  0,  0,  0,  0,  0,  5,
-            5,  0,  0,  0,  0,  0,  0,  5,
-            5,  0,  0,  0,  0,  0,  0,  5,
-            5,  0,  0,  0,  0,  0,  0,  5,
-            -5,-10,-10,-10,-10,-10,-10, -5,
-            0,  0,  0,  0,  0,  0,  0,  0
-        };
-
-        static inline const std::array<int, 64> blackQueenTable = {
-            20, 10, 10,  5,  5, 10, 10, 20,
-            10,  0, -5,  0,  0,  0,  0, 10,
-            10, -5, -5, -5, -5, -5,  0, 10,
-            0,  0, -5, -5, -5, -5,  0,  5,
-            5,  0, -5, -5, -5, -5,  0,  5,
-            10,  0, -5, -5, -5, -5,  0, 10,
-            10,  0,  0,  0,  0,  0,  0, 10,
-            20, 10, 10,  5,  5, 10, 10, 20
-        };
-
-        static inline const std::array<int, 64> blackKingTable = {
-            -20,-30,-10,  0,  0,-10,-30,-20,
-            -20,-20,  0,  0,  0,  0,-20,-20,
-            10, 20, 20, 20, 20, 20, 20, 10,
-            20, 30, 30, 40, 40, 30, 30, 20,
-            30, 40, 40, 50, 50, 40, 40, 30,
-            30, 40, 40, 50, 50, 40, 40, 30,
-            30, 40, 40, 50, 50, 40, 40, 30,
-            30, 40, 40, 50, 50, 40, 40, 30
         };
 
         static inline const std::array<std::array<int, 64>,
@@ -196,6 +57,10 @@ namespace Chess
         std::atomic<size_t> m_pendingTasks;
         std::mutex m_pauseMutex;
         std::condition_variable m_pauseCondition;
+
+#ifdef _DEBUG
+        Profiler<std::thread::id> m_profiler;
+#endif
 
     public:
 
@@ -235,11 +100,20 @@ namespace Chess
                 Move move;
                 try
                 {
-                    if (m_pendingTasks == 1)
-                        __debugbreak();
+#ifdef _DEBUG
+                    m_profiler.timeOperation(std::this_thread::get_id(),
+                    "Ai move selection", [this, &move, &board]() {
+                        m_pendingTasks++;
+                        move = getBestMove(board);
+                        m_pendingTasks--;
+                        });
+                    m_profiler.printStats(std::this_thread::get_id());
+                    m_profiler.reset(std::this_thread::get_id());
+#else
                     m_pendingTasks++;
                     move = getBestMove(board);
                     m_pendingTasks--;
+#endif
                     callback(move);
                 }
                 catch (std::exception& e)
@@ -254,24 +128,36 @@ namespace Chess
 
         Move getBestMove(const Board& board) {
 
-            auto possibleMoves = m_isWhite ?
-                Calculator::getAllPossibleWhiteMoves(board) :  // Using vector version
-                Calculator::getAllPossibleBlackMoves(board);   // Using vector version
+#ifdef _DEBUG
+            std::vector<Chess::Board> possibleBoards;
+            m_profiler.timeOperation(std::this_thread::get_id(),
+                "Possible boards generation", [this, &board, &possibleBoards]() {
+                    possibleBoards = m_isWhite ?
+                        Calculator::getAllPossibleNextBoardsWhite(board) :
+                        Calculator::getAllPossibleNextBoardsBlack(board);
+                });
 
-            sortMoves(possibleMoves, board);
+            m_profiler.timeOperation(std::this_thread::get_id(),
+                "Board sorting", [this, &board, &possibleBoards]() {
+                    sortBoards(possibleBoards, board);
+                });
+#else
+            auto possibleBoards = m_isWhite ?
+                Calculator::getAllPossibleNextBoardsWhite(board) :
+                Calculator::getAllPossibleNextBoardsBlack(board);
+
+            sortBoards(possibleBoards, board);
+#endif
             Move bestMove;
             int bestScore = INT_MIN;
 
-            for (const auto& move : possibleMoves) {
-                Board nextBoard = board;
-                nextBoard.move(move);
-
-                int score = -minimax(nextBoard, m_searchDepth - 1,
+            for (const auto& board : possibleBoards) {
+                int score = -minimax(board, m_searchDepth - 1,
                     !m_isWhite, -INT_MAX, -bestScore);
 
                 if (score > bestScore) {
                     bestScore = score;
-                    bestMove = move;
+                    bestMove = board.getLastMove();
                 }
             }
             return bestMove;
@@ -283,18 +169,35 @@ namespace Chess
         }
 
     private:
-        int minimax(Chess::Board& board, int depth, bool isWhite,
+        int minimax(const Chess::Board& board, int depth, bool isWhite,
             int alpha, int beta) {
             runtimeStateChecks();
 
+#ifdef _DEBUG
+            if (depth == 0)
+            {
+                auto scopedTiming = m_profiler.timeOperationScoped(
+                    std::this_thread::get_id(), "Position evaluation");
+                return evaluatePosition(board, isWhite);
+            }
+
+            std::vector<Chess::Board> possibleBoards;
+            m_profiler.timeOperation(std::this_thread::get_id(),
+                "Possible boards generation", [this, &isWhite, &board, &possibleBoards]() {
+                    possibleBoards = isWhite ?
+                        Calculator::getAllPossibleNextBoardsWhite(board) :
+                        Calculator::getAllPossibleNextBoardsBlack(board);
+                });
+#else
             if (depth == 0)
                 return evaluatePosition(board, isWhite);
 
-            auto possibleMoves = isWhite ?
-                Chess::Calculator::getAllPossibleWhiteMoves(board) :  // Using vector version
-                Chess::Calculator::getAllPossibleBlackMoves(board);   // Using vector version
+            auto possibleBoards = isWhite ?
+                Calculator::getAllPossibleNextBoardsWhite(board) :
+                Calculator::getAllPossibleNextBoardsBlack(board);
+#endif
 
-            if (possibleMoves.empty()) {
+            if (possibleBoards.empty()) {
                 // Checkmate check
                 if (m_isWhite)
                 {
@@ -313,14 +216,18 @@ namespace Chess
                 return 0; // Stalemate
             }
 
-            sortMoves(possibleMoves, board);
+#ifdef _DEBUG
+            m_profiler.timeOperation(std::this_thread::get_id(),
+                "Board sorting", [this, &board, &possibleBoards]() {
+                    sortBoards(possibleBoards, board);
+                });
+#else
+            sortBoards(possibleBoards, board);
+#endif
 
             int bestScore = -INT_MAX;
 
-            for (const auto& move : possibleMoves) {  // Simpler iteration
-                Chess::Board nextBoard = board;
-                nextBoard.move(move);
-
+            for (const auto& nextBoard : possibleBoards) {
                 int score = -minimax(nextBoard, depth - 1, !isWhite,
                     -beta, -alpha);
 
@@ -361,10 +268,11 @@ namespace Chess
         }
 
         // Add move sorting function
-        void sortMoves(std::vector<Move>& moves, const Chess::Board& board) {
-            std::sort(moves.begin(), moves.end(),
-                [this, &board](const Move& a, const Move& b) {
-                    return scoreMoveForOrdering(a, board) > scoreMoveForOrdering(b, board);
+        void sortBoards(std::vector<Board>& boards, const Chess::Board& board) {
+            std::sort(boards.begin(), boards.end(),
+                [this, &board](const Board& a, const Board& b) {
+                    return scoreMoveForOrdering(a.getLastMove(), board) >
+                        scoreMoveForOrdering(b.getLastMove(), board);
                 });
         }
 

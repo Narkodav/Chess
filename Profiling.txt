@@ -1,0 +1,33 @@
+==================
+Board sorting:
+  Total time: 98.6011ms
+  Calls: 1877
+  Avg time: 0.0525312ms
+  Min time: 0.0167ms
+  Max time: 0.2172ms
+  Std Dev: 0.0119683ms
+==================
+Possible boards generation:
+  Total time: 1069.55ms
+  Calls: 1877
+  Avg time: 0.569816ms
+  Min time: 0.4374ms
+  Max time: 1.1306ms
+  Std Dev: 0.107592ms
+==================
+Position evaluation:
+  Total time: 129.589ms
+  Calls: 21065
+  Avg time: 0.00615186ms
+  Min time: 0.0058ms
+  Max time: 0.0291ms
+  Std Dev: 0.000482235ms
+==================
+Ai move selection:
+  Total time: 1459.74ms
+  Calls: 1
+  Avg time: 1459.74ms
+  Min time: 1459.74ms
+  Max time: 1459.74ms
+  Std Dev: 0ms
+==================

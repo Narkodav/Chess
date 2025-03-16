@@ -141,6 +141,7 @@
   <ItemGroup>
     <ClCompile Include="Engine\Ai.cpp" />
     <ClCompile Include="Engine\Chess.cpp" />
+    <ClCompile Include="Profiler.cpp" />
     <ClCompile Include="Rendering\FrameBuffer.cpp" />
     <ClCompile Include="Rendering\FlatTexture.cpp" />
     <ClCompile Include="Rendering\AssetRepository.cpp" />
@@ -167,6 +168,8 @@
   <ItemGroup>
     <ClInclude Include="Engine\Ai.h" />
     <ClInclude Include="Engine\Chess.h" />
+    <ClInclude Include="Engine\Constants.h" />
+    <ClInclude Include="Profiler.h" />
     <ClInclude Include="Rendering\FrameBuffer.h" />
     <ClInclude Include="Rendering\FlatTexture.h" />
     <ClInclude Include="Rendering\AssetRepository.h" />
