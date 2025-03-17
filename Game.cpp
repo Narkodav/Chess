@@ -162,7 +162,7 @@ void Game::processInputs()
             access->onLMBPress(m_mouse) && access->shouldContinue())
         {
             m_ai.getBestMoveAsync(access->getBoard(), m_threadPool,
-                [this](Chess::Move move) {asyncMoveCallback(move); });
+                [this](Chess::Board nextBoard) {asyncMoveCallback(nextBoard); });
         }
     }
 
@@ -307,7 +307,7 @@ int Game::run()
                 //    m_waitingForAi = true;
                 //}
                 m_ai.abortAndWait();
-                if (access->getBoard().getBlackChecked() == access->playerIsWhite())
+                if (access->getBoard().isBlackChecked() == access->playerIsWhite())
                     m_playerWon = true;
                 else m_playerWon = false;
                 m_gameState = State::GAME_OVER;

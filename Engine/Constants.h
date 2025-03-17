@@ -5,7 +5,16 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#define popcnt64 __popcnt64
+#else
+#define popcnt64 __builtin_popcountll
+#endif
+
 #include <array>
+#include <bit>
+#include <iostream>
 
 namespace Chess
 {
@@ -35,24 +44,12 @@ namespace Chess
     static inline const glm::ivec2 PAWN_CAPTURE_BLACK_RIGHT = glm::ivec2(1, -1);
 
     // Knight move offsets
-    static inline const std::array<glm::ivec2, 8> KNIGHT_MOVES = {
-        glm::ivec2(1, 2), glm::ivec2(-1, 2),    //FORWARD
-        glm::ivec2(1, -2), glm::ivec2(-1, -2),  //BACKWARD
-        glm::ivec2(2, 1), glm::ivec2(2, -1),    //RIGHT
-        glm::ivec2(-2, 1), glm::ivec2(-2, -1)   //LEFT
-    };
-
-    // Diagonal directions (bishop/queen)
-    static inline const std::array<glm::ivec2, 4> DIAGONAL_DIRECTIONS = {
-        glm::ivec2(1, 1), glm::ivec2(1, -1),
-        glm::ivec2(-1, -1), glm::ivec2(-1, 1)
-    };
-
-    // Straight directions (rook/queen)
-    static inline const std::array<glm::ivec2, 4> STRAIGHT_DIRECTIONS = {
-        glm::ivec2(0, 1), glm::ivec2(1, 0),
-        glm::ivec2(0, -1), glm::ivec2(-1, 0)
-    };
+    static constexpr std::array<std::array<int, 2>, 8> KNIGHT_MOVES = { {
+        {1, 2}, {-1, 2},    // Forward
+        {1, -2}, {-1, -2},  // Backward
+        {2, 1}, {2, -1},    // Right
+        {-2, 1}, {-2, -1}   // Left
+    } };
 
     static inline const size_t MAXIMUM_CONSERVATIVE_MOVE_AMOUNT = 50; //may be higher but its unlikely
 
@@ -198,5 +195,150 @@ namespace Chess
         30, 40, 40, 50, 50, 40, 40, 30,
         30, 40, 40, 50, 50, 40, 40, 30,
         30, 40, 40, 50, 50, 40, 40, 30
+    };
+
+
+    // Pre-calculated lookup tables
+    constexpr std::array<uint64_t, 64> KNIGHT_ATTACKS = []()->std::array<uint64_t, 64> {
+        std::array<uint64_t, 64> attacks = { 0 };
+        for (int i = 0; i < 64; i++)
+        {
+            int x = i % 8;
+            int y = i / 8;
+            for (int j = 0; j < KNIGHT_MOVES.size(); j++)
+            {
+                int newX = x + KNIGHT_MOVES[j][0];
+                int newY = y + KNIGHT_MOVES[j][1];
+                uint32_t square = newY * 8 + newX;
+
+                if (newX >= 0 && newX < 8 && newY >= 0 && newY < 8) {
+                    attacks[i] |= 1ULL << square;
+                }
+            }
+        }
+        return attacks;
+        }();
+
+    constexpr std::array<uint64_t, 64> BISHOP_ATTACKS = []()->std::array<uint64_t, 64> {
+        std::array<uint64_t, 64> attacks = { 0 };
+        for (int i = 0; i < 64; i++)
+        {
+            int x = i % 8;
+            int y = i / 8;
+            int offset = -x;
+
+            for (int j = 0; j < 8; j++, offset++)
+            {
+                if (offset == 0)
+                    continue;
+                int newX = x + offset;
+                int newY = y + offset;
+                uint32_t square = newY * 8 + newX;
+
+                if (newY >= 0 && newY < 8) {
+                    attacks[i] |= 1ULL << square;
+                }
+
+                newY = y - offset;
+                square = newY * 8 + newX;
+
+                if (newY >= 0 && newY < 8) {
+                    attacks[i] |= 1ULL << square;
+                }
+            }
+        }
+        return attacks;
+        }();
+
+    constexpr std::array<uint64_t, 64> ROOK_ATTACKS = []()->std::array<uint64_t, 64> {
+        std::array<uint64_t, 64> attacks = { 0 };
+        for (int i = 0; i < 64; i++)
+        {
+            int x = i % 8;
+            int y = i / 8;
+
+            for (int j = 0; j < 8; j++) {
+                if (j != x) attacks[i] |= 1ULL << (y * 8 + j);
+                if (j != y) attacks[i] |= 1ULL << (j * 8 + x);
+            }
+        }
+        return attacks;
+        }();
+
+    constexpr std::array<uint64_t, 64> QUEEN_ATTACKS = []()->std::array<uint64_t, 64> {
+        std::array<uint64_t, 64> attacks = { 0 };
+        for (int i = 0; i < 64; i++)
+            attacks[i] = ROOK_ATTACKS[i] | BISHOP_ATTACKS[i];
+
+        return attacks;
+        }();
+
+    constexpr std::array<uint64_t, 64> KING_ATTACKS = []()->std::array<uint64_t, 64> {
+        std::array<uint64_t, 64> attacks = { 0 };
+        for (int i = 0; i < 64; i++)
+        {
+            int x = i % 8;
+            int y = i / 8;
+
+            int minX = std::max(0, x - 1);
+            int maxX = std::min(7, x + 1);
+            int minY = std::max(0, y - 1);
+            int maxY = std::min(7, y + 1);
+
+            for (int j = minX; j <= maxX; j++) {
+                for (int k = minY; k <= maxY; k++) {
+                    attacks[i] |= 1ULL << (k * 8 + j);
+                }
+            }
+        }
+        return attacks;
+        }();
+
+    static inline const uint64_t RANK_1 = 0x00000000000000FFULL; //white start here, its down, x = 0
+    static inline const uint64_t RANK_2 = 0x000000000000FF00ULL;
+    static inline const uint64_t RANK_3 = 0x0000000000FF0000ULL;
+    static inline const uint64_t RANK_4 = 0x00000000FF000000ULL;
+    static inline const uint64_t RANK_5 = 0x000000FF00000000ULL;
+    static inline const uint64_t RANK_6 = 0x0000FF0000000000ULL;
+    static inline const uint64_t RANK_7 = 0x00FF000000000000ULL;
+    static inline const uint64_t RANK_8 = 0xFF00000000000000ULL; //top rank
+
+    static inline const uint64_t FILE_A = 0x0101010101010101ULL; // file A (rightmost bit in each byte)
+    static inline const uint64_t FILE_B = 0x0202020202020202ULL; // file B (second bit from right)
+    static inline const uint64_t FILE_C = 0x0404040404040404ULL; // file C (third bit from right)
+    static inline const uint64_t FILE_D = 0x0808080808080808ULL; // file D (fourth bit from right)
+    static inline const uint64_t FILE_E = 0x1010101010101010ULL; // file E (fifth bit from right)
+    static inline const uint64_t FILE_F = 0x2020202020202020ULL; // file F (sixth bit from right)
+    static inline const uint64_t FILE_G = 0x4040404040404040ULL; // file G (seventh bit from right)
+    static inline const uint64_t FILE_H = 0x8080808080808080ULL; // file H (leftmost bit in each byte)
+
+    // Starting position masks for rooks
+    static inline const uint64_t WHITE_ROOK_KINGSIDE_START = 0x0000000000000080ULL;  // h1
+    static inline const uint64_t WHITE_ROOK_QUEENSIDE_START = 0x0000000000000001ULL;  // a1
+    static inline const uint64_t BLACK_ROOK_KINGSIDE_START = 0x8000000000000000ULL;  // h8
+    static inline const uint64_t BLACK_ROOK_QUEENSIDE_START = 0x0100000000000000ULL;  // a8
+
+    // Starting position masks for kings
+    static inline const uint64_t WHITE_KING_START = 0x0000000000000010ULL;  // e1
+    static inline const uint64_t BLACK_KING_START = 0x1000000000000000ULL;  // e8
+
+    // Castling path masks (squares that must be empty and not under attack)
+    static inline const uint64_t WHITE_KINGSIDE_CASTLING_PATH = 0x0000000000000060ULL;  // f1 and g1
+    static inline const uint64_t WHITE_QUEENSIDE_CASTLING_PATH = 0x000000000000000EULL;  // b1, c1, and d1
+    static inline const uint64_t BLACK_KINGSIDE_CASTLING_PATH = 0x6000000000000000ULL;  // f8 and g8
+    static inline const uint64_t BLACK_QUEENSIDE_CASTLING_PATH = 0x0E00000000000000ULL;  // b8, c8, and d8
+
+    // Full castling masks (including rook and king positions)
+    static inline const uint64_t WHITE_KINGSIDE_CASTLING_FULL = 0x00000000000000F0ULL;  // e1, f1, g1, h1
+    static inline const uint64_t WHITE_QUEENSIDE_CASTLING_FULL = 0x000000000000001FULL;  // a1, b1, c1, d1, e1
+    static inline const uint64_t BLACK_KINGSIDE_CASTLING_FULL = 0xF000000000000000ULL;  // e8, f8, g8, h8
+    static inline const uint64_t BLACK_QUEENSIDE_CASTLING_FULL = 0x1F00000000000000ULL;  // a8, b8, c8, d8, e8
+
+    //fuck you whoever invented these
+    struct Magic {
+        std::vector<uint64_t> attackTable;  // pointer to attack_table for each particular square
+        uint64_t mask;                      // to mask relevant squares of both lines (no outer squares)
+        uint64_t magic;                     // magic 64-bit factor
+        int shift;                          // shift right
     };
 }

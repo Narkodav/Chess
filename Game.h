@@ -33,7 +33,7 @@ private:
 	FrameRateCalculator frameRateCalc;
 	Chess::Ai m_ai;
 	MT::ThreadPool m_threadPool; //for async ai
-    size_t m_aiDepth = 5;
+    size_t m_aiDepth = 1;
     bool m_vsAi = false;
     bool m_playerWon = false;
 
@@ -77,7 +77,7 @@ public:
 
 	int run();
 
-    void asyncMoveCallback(const Chess::Move& move) {
+    void asyncMoveCallback(const Chess::Board& move) {
         m_board.getWriteAccess()->makeMove(move);
     }
 
@@ -204,7 +204,7 @@ public:
 
             // If player is black, AI should make first move
             m_ai.getBestMoveAsync(access->getBoard(), m_threadPool,
-                [this](Chess::Move move) {asyncMoveCallback(move); });
+                [this](Chess::Board nextBoard) {asyncMoveCallback(nextBoard); });
             m_gameState = State::PLAYING;
         }
 
@@ -319,7 +319,7 @@ public:
             // If player is black, AI should make first move
             if (!access->playerIsWhite())
                 m_ai.getBestMoveAsync(access->getBoard(), m_threadPool,
-                    [this](Chess::Move move) {asyncMoveCallback(move); });
+                    [this](Chess::Board nextBoard) {asyncMoveCallback(nextBoard); });
             m_gameState = State::PLAYING;
         }
 

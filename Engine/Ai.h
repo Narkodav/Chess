@@ -15,7 +15,7 @@ namespace Chess
     class Ai {
     public:
         // Basic piece values for material evaluation:
-        static inline const std::array<int, static_cast<size_t>(Piece::Type::NUM)> pieceValues = {
+        static inline const std::array<int, static_cast<size_t>(PieceTypes::NUM)> pieceValues = {
             0,      //EMPTY
             100,    //WHITE_PAWN
             300,    //WHITE_KNIGHT
@@ -33,7 +33,7 @@ namespace Chess
         };
 
         static inline const std::array<std::array<int, 64>,
-            static_cast<size_t>(Piece::Type::NUM)> pieceSquareTables = {
+            static_cast<size_t>(PieceTypes::NUM)> pieceSquareTables = {
                 emptyTable,         //EMPTY
                 whitePawnTable,     //WHITE_PAWN
                 whiteKnightTable,   //WHITE_KNIGHT
@@ -63,7 +63,7 @@ namespace Chess
 #endif
 
     public:
-
+        
         void abortAndWait()
         {
             m_shouldAbort = true;
@@ -94,27 +94,27 @@ namespace Chess
         }
 
         //makes a copy of the board for a completely isolated async search, not an expensive operation overall
-        void getBestMoveAsync(Board board, MT::ThreadPool& pool, std::function<void(Move)> callback)
+        void getBestMoveAsync(Board board, MT::ThreadPool& pool, std::function<void(Board)> callback)
         {
             pool.pushTask([this, board = std::move(board), callback]() {
-                Move move;
+                Board boardNext;
                 try
                 {
 #ifdef _DEBUG
                     m_profiler.timeOperation(std::this_thread::get_id(),
-                    "Ai move selection", [this, &move, &board]() {
+                    "Ai move selection", [this, &boardNext, &board]() {
                         m_pendingTasks++;
-                        move = getBestMove(board);
+                        boardNext = getBestMove(board);
                         m_pendingTasks--;
                         });
                     m_profiler.printStats(std::this_thread::get_id());
                     m_profiler.reset(std::this_thread::get_id());
 #else
                     m_pendingTasks++;
-                    move = getBestMove(board);
+                    boardNext = getBestMove(board);
                     m_pendingTasks--;
 #endif
-                    callback(move);
+                    callback(boardNext);
                 }
                 catch (std::exception& e)
                 {
@@ -126,29 +126,29 @@ namespace Chess
                 });
         }
 
-        Move getBestMove(const Board& board) {
+        Board getBestMove(const Board& board) {
 
 #ifdef _DEBUG
             std::vector<Chess::Board> possibleBoards;
             m_profiler.timeOperation(std::this_thread::get_id(),
                 "Possible boards generation", [this, &board, &possibleBoards]() {
                     possibleBoards = m_isWhite ?
-                        Calculator::getAllPossibleNextBoardsWhite(board) :
-                        Calculator::getAllPossibleNextBoardsBlack(board);
+                        Calculator::getNextBoardsWhite(board) :
+                        Calculator::getNextBoardsBlack(board);
                 });
 
             m_profiler.timeOperation(std::this_thread::get_id(),
                 "Board sorting", [this, &board, &possibleBoards]() {
-                    sortBoards(possibleBoards, board);
+                    sortBoards(possibleBoards, board, m_isWhite);
                 });
 #else
             auto possibleBoards = m_isWhite ?
-                Calculator::getAllPossibleNextBoardsWhite(board) :
-                Calculator::getAllPossibleNextBoardsBlack(board);
+                Calculator::getNextBoardsWhite(board) :
+                Calculator::getNextBoardsBlack(board);
 
-            sortBoards(possibleBoards, board);
+            sortBoards(possibleBoards, board, m_isWhite);
 #endif
-            Move bestMove;
+            Board bestBoard;
             int bestScore = INT_MIN;
 
             for (const auto& board : possibleBoards) {
@@ -157,10 +157,10 @@ namespace Chess
 
                 if (score > bestScore) {
                     bestScore = score;
-                    bestMove = board.getLastMove();
+                    bestBoard = board;
                 }
             }
-            return bestMove;
+            return bestBoard;
         }
 
         size_t getPendingTasks() const
@@ -185,32 +185,32 @@ namespace Chess
             m_profiler.timeOperation(std::this_thread::get_id(),
                 "Possible boards generation", [this, &isWhite, &board, &possibleBoards]() {
                     possibleBoards = isWhite ?
-                        Calculator::getAllPossibleNextBoardsWhite(board) :
-                        Calculator::getAllPossibleNextBoardsBlack(board);
+                        Calculator::getNextBoardsWhite(board) :
+                        Calculator::getNextBoardsBlack(board);
                 });
 #else
             if (depth == 0)
                 return evaluatePosition(board, isWhite);
 
             auto possibleBoards = isWhite ?
-                Calculator::getAllPossibleNextBoardsWhite(board) :
-                Calculator::getAllPossibleNextBoardsBlack(board);
+                Calculator::getNextBoardsWhite(board) :
+                Calculator::getNextBoardsBlack(board);
 #endif
 
             if (possibleBoards.empty()) {
                 // Checkmate check
                 if (m_isWhite)
                 {
-                    if (board.getBlackChecked())
+                    if (board.isBlackChecked())
                         return 20000;
-                    else if (board.getWhiteChecked())
+                    else if (board.isWhiteChecked())
                         return -20000;
                 }
                 else
                 {
-                    if (board.getBlackChecked())
+                    if (board.isBlackChecked())
                         return -20000;
-                    else if (board.getWhiteChecked())
+                    else if (board.isWhiteChecked())
                         return 20000;
                 }
                 return 0; // Stalemate
@@ -218,11 +218,11 @@ namespace Chess
 
 #ifdef _DEBUG
             m_profiler.timeOperation(std::this_thread::get_id(),
-                "Board sorting", [this, &board, &possibleBoards]() {
-                    sortBoards(possibleBoards, board);
+                "Board sorting", [this, &board, &isWhite, &possibleBoards]() {
+                    sortBoards(possibleBoards, board, isWhite);
                 });
 #else
-            sortBoards(possibleBoards, board);
+            sortBoards(possibleBoards, board, isWhite);
 #endif
 
             int bestScore = -INT_MAX;
@@ -242,65 +242,87 @@ namespace Chess
         }
 
         // Add move scoring function
-        int scoreMoveForOrdering(const Move& move, const Chess::Board& board) {
+        int scoreMoveForOrdering(const Board& nextBoard, const Chess::Board& board, bool isWhite) {
             constexpr int CAPTURE_BONUS = 10000;  // Base score for captures
 
             int score = 0;
+            bool isCapture = isWhite ?
+                nextBoard.getBitBoard().getAllBlackPieces() != board.getBitBoard().getAllBlackPieces() :
+                nextBoard.getBitBoard().getAllWhitePieces() != board.getBitBoard().getAllWhitePieces();
+
+            std::pair<int, int> fromTo;
+
+            if (isWhite)
+                fromTo = Calculator::getFromToPairWhite(nextBoard, board);
+            else fromTo = Calculator::getFromToPairBlack(nextBoard, board);
 
             // If it's a capture, score using MVV-LVA
-            if (move.isCapture()) {
+            auto fromType = board.getPieceTypeAtSquare(fromTo.first);
+            if (isCapture) {
                 // Victim value - Attacker value (MVV-LVA)
-                int victimValue = std::abs(pieceValues[static_cast<size_t>(board.at(move.to.x, move.to.y).piece)]);
-                int attackerValue = std::abs(pieceValues[static_cast<size_t>(board.at(move.from.x, move.from.y).piece)]);
+                int victimValue = std::abs(pieceValues[static_cast<size_t>(
+                    board.getPieceTypeAtSquare(fromTo.second))]);
+                int attackerValue = std::abs(pieceValues[static_cast<size_t>(fromType)]);
                 score = CAPTURE_BONUS + victimValue - (attackerValue / 100);
             }
 
-            // Add positional change score
-            int fromSquare = move.from.y * 8 + move.from.x;
-            int toSquare = move.to.y * 8 + move.to.x;
-            auto pieceType = static_cast<size_t>(board.at(move.from.x, move.from.y).piece);
-
             // Prefer moves to better squares
-            score += (pieceSquareTables[pieceType][toSquare] -
-                pieceSquareTables[pieceType][fromSquare]) / 100;
+            score += (pieceSquareTables[static_cast<size_t>(fromType)][fromTo.second] -
+                pieceSquareTables[static_cast<size_t>(fromType)][fromTo.first]) / 100;
 
             return score;
         }
 
         // Add move sorting function
-        void sortBoards(std::vector<Board>& boards, const Chess::Board& board) {
+        void sortBoards(std::vector<Board>& boards, const Chess::Board& board, bool isWhite) {
             std::sort(boards.begin(), boards.end(),
-                [this, &board](const Board& a, const Board& b) {
-                    return scoreMoveForOrdering(a.getLastMove(), board) >
-                        scoreMoveForOrdering(b.getLastMove(), board);
+                [this, &board, &isWhite](const Board& a, const Board& b) {
+                    //if (a.getBitBoard().getAllPieces() == b.getBitBoard().getAllPieces())
+                    //    __debugbreak();
+                    //if (a.getBitBoard().getAllPieces() == board.getBitBoard().getAllPieces())
+                    //    __debugbreak();
+                    //if (board.getBitBoard().getAllPieces() == b.getBitBoard().getAllPieces())
+                    //    __debugbreak();
+                    return scoreMoveForOrdering(a, board, isWhite) >
+                        scoreMoveForOrdering(b, board, isWhite);
                 });
         }
 
         int evaluatePosition(const Chess::Board& board, bool isWhite) {
             int score = 0;
-
+            auto empty = ~board.getBitBoard().getAllPieces();
             // Material counting
             // Piece positioning
             // Mobility
             // King safety
             // Pawn structure
 
-            for (int y = 0; y < 8; y++) {
-                for (int x = 0; x < 8; x++) {
-                    const Chess::Piece& piece = board.at(x, y);
-                    if (piece.isEmpty())
-                        continue;
+            //white pieces
+            score += getPieceScore(board.getBitBoard().whiteBishops, PieceTypes::WHITE_BISHOP);
+            score += getPieceScore(board.getBitBoard().whiteKnights, PieceTypes::WHITE_KNIGHT);
+            score += getPieceScore(board.getBitBoard().whitePawns, PieceTypes::WHITE_PAWN);
+            score += getPieceScore(board.getBitBoard().whiteRooks, PieceTypes::WHITE_ROOK);
+            score += getPieceScore(board.getBitBoard().whiteQueens, PieceTypes::WHITE_QUEEN);
 
-                    // Material value
-                    int value = pieceValues[static_cast<size_t>(piece.piece)];
-                    score += value;
+            //black pieces
+            score += getPieceScore(board.getBitBoard().blackBishops, PieceTypes::BLACK_BISHOP);
+            score += getPieceScore(board.getBitBoard().blackKnights, PieceTypes::BLACK_KNIGHT);
+            score += getPieceScore(board.getBitBoard().blackPawns, PieceTypes::BLACK_PAWN);
+            score += getPieceScore(board.getBitBoard().blackRooks, PieceTypes::BLACK_ROOK);
+            score += getPieceScore(board.getBitBoard().blackQueens, PieceTypes::BLACK_QUEEN);
+            
+            return score;
+        }
 
-                    // Positional value - direct lookup from tables
-                    int square = y * 8 + x;
-                    score += pieceSquareTables[static_cast<size_t>(piece.piece)][square];
-                }
+        inline int getPieceScore(uint64_t pieceMask, PieceTypes type)
+        {
+            int score = 0;
+            while (pieceMask) {
+                int square = std::countr_zero(pieceMask);
+                score += pieceValues[static_cast<size_t>(type)];
+                score += pieceSquareTables[static_cast<size_t>(type)][square];
+                pieceMask &= pieceMask - 1;
             }
-
             return score;
         }
 

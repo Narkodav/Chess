@@ -4,484 +4,365 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <bit>
 
 #include "Constants.h"
+#include "MagicBishops.h"
+#include "MagicRooks.h"
 
 namespace Chess
 {
+    enum class PieceTypes : uint8_t
+    {
+        EMPTY,
+        WHITE_PAWN,
+        WHITE_KNIGHT,
+        WHITE_BISHOP,
+        WHITE_ROOK,
+        WHITE_QUEEN,
+        WHITE_KING,
 
-	struct Piece
-	{
-        enum class Type : uint8_t
-        {
-            EMPTY,
+        BLACK_PAWN,
+        BLACK_KNIGHT,
+        BLACK_BISHOP,
+        BLACK_ROOK,
+        BLACK_QUEEN,
+        BLACK_KING,
 
-            WHITE_PAWN,
-            WHITE_KNIGHT,
-            WHITE_BISHOP,
-            WHITE_ROOK,
-            WHITE_QUEEN,
-            WHITE_KING,
-
-            BLACK_PAWN,
-            BLACK_KNIGHT,
-            BLACK_BISHOP,
-            BLACK_ROOK,
-            BLACK_QUEEN,
-            BLACK_KING,
-
-            NUM
-        };
-
-        Type piece;
-        uint16_t moveCounter = 0;
-        uint16_t lastMoved = 0;
-        // 2 bytes in case there are custom setups or rules, 
-        // the longest real chess game was calculated to be 5949 moves
-
-        bool isEmpty() const { return piece == Type::EMPTY; }
-        bool isWhite() const { return piece <= Type::WHITE_KING; }
-        bool isBlack() const { return piece >= Type::BLACK_PAWN; }
-        bool isPawn() const { return piece == Type::WHITE_PAWN || piece == Type::BLACK_PAWN; }
-
-        Piece() : piece(Type::EMPTY), moveCounter(0), lastMoved(0) {};
-        Piece(Type piece) : piece(piece), moveCounter(0), lastMoved(0) {};
-        Piece(Type piece, uint16_t moveCounter, uint16_t lastMoved) :
-            piece(piece), moveCounter(moveCounter), lastMoved(lastMoved) {};
-
-        Piece(const Piece&) = default;
-        Piece(Piece&&) noexcept = default;
-
-        Piece& operator=(const Piece&) = default;
-        Piece& operator=(Piece&&) noexcept = default;
-	};
-
-    struct Move {
-        // For rendering and move validation
-        glm::ivec2 from;
-        glm::ivec2 to;
-
-        // All pieces that changed position in this move
-        std::vector<std::pair<glm::ivec2, Piece>> removedPieces; //tiles set to empty
-        std::vector<std::pair<glm::ivec2, Piece>> addedPieces; //tiles set to data in stored piece
-
-        // Move number in the game for history
-        uint16_t moveNumber = 0;
-
-        // Optional: evaluation/score for AI
-        float score = 0.0f;
-
-        bool isCapture() const { return removedPieces.size() > addedPieces.size(); }
-
-        Move() : from(glm::ivec2(0)), to(glm::ivec2(0)), removedPieces(),
-            addedPieces(), moveNumber(0), score(0.0f) {};
-
-        Move(const Move&) = default;
-        Move& operator=(const Move&) = default;
-
-        Move(Move&&) noexcept = default;
-        Move& operator=(Move&&) noexcept = default;
+        NUM
     };
 
-	class Board
-	{
+    struct MagicInit {
+        static MagicInit& getInstance() {
+            static MagicInit instance;
+            return instance;
+        }
+    private:
+        MagicInit() {
+            MagicBishops::initializeMagics();
+            MagicRooks::initializeMagics();
+            MagicBishops::debugMagicNumber(4);
+            MagicRooks::debugMagicNumber(4);
+        }
+    };
+
+    static inline MagicInit magicInit = MagicInit::getInstance();
+
+    class Board
+    {
+    public:
+        struct BitBoard {
+            // One 64-bit integer for each piece type and color
+            uint64_t whitePawns;
+            uint64_t whiteKnights;
+            uint64_t whiteBishops;
+            uint64_t whiteRooks;
+            uint64_t whiteQueens;
+            uint64_t whiteKing;
+
+            uint64_t blackPawns;
+            uint64_t blackKnights;
+            uint64_t blackBishops;
+            uint64_t blackRooks;
+            uint64_t blackQueens;
+            uint64_t blackKing;
+
+            // Get all white pieces
+            inline uint64_t getAllWhitePieces() const
+            {
+                return whitePawns | whiteKnights | whiteBishops |
+                    whiteRooks | whiteQueens | whiteKing;
+            }
+
+            inline uint64_t getAllBlackPieces() const
+            {
+                return blackPawns | blackKnights | blackBishops |
+                    blackRooks | blackQueens | blackKing;
+            }
+            
+            inline uint64_t getAllPieces() const
+            {
+                return getAllWhitePieces() | getAllBlackPieces();
+            }
+
+            static bool isOccupied(int rank, int file, uint64_t pieces)
+            {
+                return (pieces & (1ULL << rank * 8 + file)) != 0;
+            }
+
+            //// Generate pawn moves (shift by 8 for one square forward)
+            //uint64_t pawnMoves = (whitePawns << 8) & ~allPieces; // & with empty squares
+
+            //// Generate knight moves using pre-calculated lookup tables
+            //uint64_t knightMoves = KnightMovesTable[fromSquare] & ~allWhitePieces;
+        };
+
+        enum class Flags : uint8_t
+        {
+            WHITE_CHECKED = 1 << 0,
+            BLACK_CHECKED = 1 << 1,
+            WHITE_HAS_CASTLING_KINGSIDE_RIGHTS = 1 << 2,
+            WHITE_HAS_CASTLING_QUEENSIDE_RIGHTS = 1 << 3,
+            BLACK_HAS_CASTLING_KINGSIDE_RIGHTS = 1 << 4,
+            BLACK_HAS_CASTLING_QUEENSIDE_RIGHTS = 1 << 5,
+        };
 
     private:
-        Utils::ArrayNd<Piece, 8, 8> m_board;
-        size_t m_totalMoveCount = 0;
-        Move m_lastMove;
-        
-        bool m_isWhiteChecked = false;
-        bool m_isBlackChecked = false;
-
-        glm::ivec2 m_whiteKingPos;
-        glm::ivec2 m_blackKingPos;
+        BitBoard m_bitBoard;
+        uint8_t m_enPassantSquare = 0; //square on which an en passant capture is possible
+        uint8_t m_flags = 0;
 
     public:
-        Board() : m_board(), m_totalMoveCount(0), m_lastMove(),
-            m_isWhiteChecked(false), m_isBlackChecked(false) {};
-        Board(const Board& other) {
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                    m_board.at(x, y) = other.m_board.at(x, y);
-            m_totalMoveCount = other.m_totalMoveCount;
-            m_lastMove = other.m_lastMove;
-            m_isWhiteChecked = other.m_isWhiteChecked;
-            m_isBlackChecked = other.m_isBlackChecked;
-            m_whiteKingPos = other.m_whiteKingPos;
-            m_blackKingPos = other.m_blackKingPos;
-        }
+        inline const BitBoard& getBitBoard() const { return m_bitBoard; };
+        inline BitBoard& getBitBoard() { return m_bitBoard; };
 
-        Board& operator=(const Board& other) {
-            if (this == &other)
-                return *this;
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                    m_board.at(x, y) = other.m_board.at(x, y);
-            m_totalMoveCount = other.m_totalMoveCount;
-            m_lastMove = other.m_lastMove;
-            m_isWhiteChecked = other.m_isWhiteChecked;
-            m_isBlackChecked = other.m_isBlackChecked;
-            m_whiteKingPos = other.m_whiteKingPos;
-            m_blackKingPos = other.m_blackKingPos;
-            return *this;
-        }
+        inline const uint8_t& getEnPassantSquare() const { return m_enPassantSquare; };
+        inline uint8_t& getEnPassantSquare() { return m_enPassantSquare; };
 
-        Board(Board&&) noexcept = default;
-        Board& operator=(Board&&) noexcept = default;
+        inline const uint8_t& getFlags() const { return m_flags; };
+        inline uint8_t& getFlags() { return m_flags; };
 
-        void incrementMoveCount() { m_totalMoveCount++; };
-        size_t getTotalMoveCount() const { return m_totalMoveCount; };
+        bool isWhiteChecked() const { return m_flags & static_cast<uint8_t>(Flags::WHITE_CHECKED); };
+        bool isBlackChecked() const { return m_flags & static_cast<uint8_t>(Flags::BLACK_CHECKED); };
 
-        void setLastMove(Move&& move) { m_lastMove = std::move(move); };
-        const Move& getLastMove() const { return m_lastMove; };
+        Board() : m_bitBoard({ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }),
+            m_enPassantSquare(0), m_flags(0) {};
 
-        const glm::ivec2& getWhiteKingPos() const { return m_whiteKingPos; };
-        const glm::ivec2& getBlackKingPos() const { return m_blackKingPos; };
+        Board(const Board&) = default;
+        Board& operator=(const Board&) = default;
 
-        void move(const Move& move);
+        Board(Board&&) = default;
+        Board& operator=(Board&&) = default;
 
         void reset()
         {
+            // Reset white pieces
+            m_bitBoard.whitePawns = 0x000000000000FF00ULL;    // Rank 2
+            m_bitBoard.whiteKnights = 0x0000000000000042ULL;    // b1, g1
+            m_bitBoard.whiteBishops = 0x0000000000000024ULL;    // c1, f1
+            m_bitBoard.whiteRooks = 0x0000000000000081ULL;    // a1, h1
+            m_bitBoard.whiteQueens = 0x0000000000000008ULL;    // d1
+            m_bitBoard.whiteKing = 0x0000000000000010ULL;    // e1
 
-            // Set empty squares in the middle
-            for (int i = 0; i < 8; i++) {
-                for (int j = 2; j < 6; j++) {
-                    m_board.at(i, j) = Piece::Type::EMPTY;
-                }
-            }
+            // Reset black pieces
+            m_bitBoard.blackPawns = 0x00FF000000000000ULL;    // Rank 7
+            m_bitBoard.blackKnights = 0x4200000000000000ULL;    // b8, g8
+            m_bitBoard.blackBishops = 0x2400000000000000ULL;    // c8, f8
+            m_bitBoard.blackRooks = 0x8100000000000000ULL;    // a8, h8
+            m_bitBoard.blackQueens = 0x0800000000000000ULL;    // d8
+            m_bitBoard.blackKing = 0x1000000000000000ULL;    // e8
 
-            m_board.at(0, 0) = Piece::Type::WHITE_ROOK;
-            m_board.at(1, 0) = Piece::Type::WHITE_KNIGHT;
-            m_board.at(2, 0) = Piece::Type::WHITE_BISHOP;
-            m_board.at(3, 0) = Piece::Type::WHITE_QUEEN;
-            m_board.at(4, 0) = Piece::Type::WHITE_KING;
-            m_board.at(5, 0) = Piece::Type::WHITE_BISHOP;
-            m_board.at(6, 0) = Piece::Type::WHITE_KNIGHT;
-            m_board.at(7, 0) = Piece::Type::WHITE_ROOK;
-
-            for (int i = 0; i < 8; i++) {
-                m_board.at(i, 1) = Piece::Type::WHITE_PAWN;
-            }
-
-            m_board.at(0, 7) = Piece::Type::BLACK_ROOK;
-            m_board.at(1, 7) = Piece::Type::BLACK_KNIGHT;
-            m_board.at(2, 7) = Piece::Type::BLACK_BISHOP;
-            m_board.at(3, 7) = Piece::Type::BLACK_QUEEN;
-            m_board.at(4, 7) = Piece::Type::BLACK_KING;
-            m_board.at(5, 7) = Piece::Type::BLACK_BISHOP;
-            m_board.at(6, 7) = Piece::Type::BLACK_KNIGHT;
-            m_board.at(7, 7) = Piece::Type::BLACK_ROOK;
-
-            for (int i = 0; i < 8; i++) {
-                m_board.at(i, 6) = Piece::Type::BLACK_PAWN;
-            }
-
-            m_whiteKingPos = glm::ivec2(4, 0);
-            m_blackKingPos = glm::ivec2(4, 7);
-
-            m_totalMoveCount = 0;
-            m_isWhiteChecked = false;
-            m_isBlackChecked = false;
+            m_flags |= static_cast<uint8_t>(Flags::WHITE_HAS_CASTLING_KINGSIDE_RIGHTS);
+            m_flags |= static_cast<uint8_t>(Flags::WHITE_HAS_CASTLING_QUEENSIDE_RIGHTS);
+            m_flags |= static_cast<uint8_t>(Flags::BLACK_HAS_CASTLING_KINGSIDE_RIGHTS);
+            m_flags |= static_cast<uint8_t>(Flags::BLACK_HAS_CASTLING_QUEENSIDE_RIGHTS);
+                
+            // Reset en passant square
+            m_enPassantSquare = 0;
         }
 
-        bool getWhiteChecked() const { return m_isWhiteChecked; };
-        bool getBlackChecked() const { return m_isBlackChecked; };
+        PieceTypes getPieceTypeAtSquare(int square) const {
+            uint64_t squareMask = 1ULL << square;
+            if (~m_bitBoard.getAllPieces() & squareMask)
+                return PieceTypes::EMPTY;
 
-        Piece& at(size_t x, size_t y) { return m_board.at(x, y); };
-        const Piece& at(size_t x, size_t y) const { return m_board.at(x, y); };
+            // White pieces
+            if (m_bitBoard.whitePawns & squareMask)
+                return PieceTypes::WHITE_PAWN;
+            if (m_bitBoard.whiteKnights & squareMask)
+                return PieceTypes::WHITE_KNIGHT;
+            if (m_bitBoard.whiteBishops & squareMask)
+                return PieceTypes::WHITE_BISHOP;
+            if (m_bitBoard.whiteRooks & squareMask)
+                return PieceTypes::WHITE_ROOK;
+            if (m_bitBoard.whiteQueens & squareMask)
+                return PieceTypes::WHITE_QUEEN;
+            if (m_bitBoard.whiteKing & squareMask)
+                return PieceTypes::WHITE_KING;
 
-        //vector variants
-        Piece& at(const glm::ivec2& pos) { return m_board.at(pos.x, pos.y); };
-        const Piece& at(const glm::ivec2& pos) const { return m_board.at(pos.x, pos.y); };
-	};
+            // Black pieces
+            if (m_bitBoard.blackPawns & squareMask)
+                return PieceTypes::BLACK_PAWN;
+            if (m_bitBoard.blackKnights & squareMask)
+                return PieceTypes::BLACK_KNIGHT;
+            if (m_bitBoard.blackBishops & squareMask)
+                return PieceTypes::BLACK_BISHOP;
+            if (m_bitBoard.blackRooks & squareMask)
+                return PieceTypes::BLACK_ROOK;
+            if (m_bitBoard.blackQueens & squareMask)
+                return PieceTypes::BLACK_QUEEN;
+            if (m_bitBoard.blackKing & squareMask)
+                return PieceTypes::BLACK_KING;
 
-	// implements the rules of chess, takes a board and returns either possible moves or possible next boards
-    // the white pieces are always at the bottom, rotate the array manually for visual representation
-    // the bottom left corner is 0,0 and top right is 7,7
+            return PieceTypes::EMPTY;
+        }
+    };
+
     class Calculator
     {
     public:
-        //for a specific piece
-        static inline std::vector<Move> getAllPossibleMoves(const Board& board, const glm::ivec2& from) {
-            return moveFuncs[static_cast<size_t>(board.at(from).piece)](board, from);
+
+        static std::vector<Board> getNextBoardsWhite(const Board& currentBoard) {
+
+            std::vector<Board> nextBoards;
+            nextBoards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            getWhitePawnsMoves(currentBoard, nextBoards);
+            getWhiteKnightsMoves(currentBoard, nextBoards);
+            getWhiteBishopsMoves(currentBoard, nextBoards);
+            getWhiteRooksMoves(currentBoard, nextBoards);
+            getWhiteQueensMoves(currentBoard, nextBoards);
+            getWhiteKingMoves(currentBoard, nextBoards);
+            return nextBoards;
         }
 
-        //for all pieces on the board
-        static std::vector<Move> getAllPossibleWhiteMoves(const Board& board) {
-            std::vector<Move> moves;
-            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                {
-                    if (board.at(glm::ivec2(x, y)).isBlack() || board.at(glm::ivec2(x, y)).isEmpty())
-                        continue;
-                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (!buff.empty())
-                    {
-                        for (auto it = buff.begin(); it != buff.end();) {
-                            Board nextBoard = board;
-                            nextBoard.move(*it);
-                            if (nextBoard.getWhiteChecked()) {
-                                it = buff.erase(it);
-                            }
-                            else {
-                                ++it;
-                            }
+        static std::vector<Board> getNextBoardsBlack(const Board& currentBoard) {
 
-                        }
-                        if (!buff.empty())
-                            moves.insert(moves.end(), buff.begin(), buff.end());
-                    }
-                }
-            return moves;
+            std::vector<Board> nextBoards;
+            nextBoards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            getBlackPawnsMoves(currentBoard, nextBoards);
+            getBlackKnightsMoves(currentBoard, nextBoards);
+            getBlackBishopsMoves(currentBoard, nextBoards);
+            getBlackRooksMoves(currentBoard, nextBoards);
+            getBlackQueensMoves(currentBoard, nextBoards);
+            getBlackKingMoves(currentBoard, nextBoards);
+            return nextBoards;
         }
 
-        static std::vector<Move> getAllPossibleBlackMoves(const Board& board) {
-            std::vector<Move> moves;
-            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                {
-                    if (board.at(glm::ivec2(x, y)).isWhite())
-                        continue;
-                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (!buff.empty())
-                    {
-                        for (auto it = buff.begin(); it != buff.end();) {
-                            Board nextBoard = board;
-                            nextBoard.move(*it);
-                            if (nextBoard.getBlackChecked()) {
-                                it = buff.erase(it);
-                            }
-                            else {
-                                ++it;
-                            }
-                        }
-                        if (!buff.empty())
-                            moves.insert(moves.end(), buff.begin(), buff.end());
-                    }
-                }
-            return moves;
-        }
+        static std::unordered_multimap<int, Board> getNextBoardsWhiteMultimap(const Board& currentBoard) {
 
-        //stores all the moves in a map with coord as key
-        static std::unordered_map<glm::ivec2, std::vector<Move>> getAllPossibleWhiteMovesMap(const Board& board) {
-            std::unordered_map<glm::ivec2, std::vector<Move>> moves;
+            std::vector<Board> nextBoards;
+            nextBoards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            getWhitePawnsMoves(currentBoard, nextBoards);
+            getWhiteKnightsMoves(currentBoard, nextBoards);
+            getWhiteBishopsMoves(currentBoard, nextBoards);
+            getWhiteRooksMoves(currentBoard, nextBoards);
+            getWhiteQueensMoves(currentBoard, nextBoards);
+            getWhiteKingMoves(currentBoard, nextBoards);
 
-            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                {
-                    if (board.at(glm::ivec2(x, y)).isBlack() || board.at(glm::ivec2(x, y)).isEmpty())
-                        continue;
-                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (!buff.empty())
-                    {
-                        for (auto it = buff.begin(); it != buff.end();) {
-                            Board nextBoard = board;
-                            nextBoard.move(*it);
-                            if (nextBoard.getWhiteChecked()) {
-                                it = buff.erase(it);
-                            }
-                            else {
-                                ++it;
-                            }
+            std::unordered_multimap<int, Board> nextMap;
 
-                        }
-                        if (!buff.empty())
-                            moves[glm::ivec2(x, y)] = std::move(buff);
-                    }
-                }
-            return moves;
-        }
-
-        //stores all the moves in a map with coord as key
-        static std::unordered_map<glm::ivec2, std::vector<Move>> getAllPossibleBlackMovesMap(const Board& board) {
-            std::unordered_map<glm::ivec2, std::vector<Move>> moves;
-
-            moves.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                {
-                    if (board.at(glm::ivec2(x, y)).isWhite())
-                        continue;
-                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (!buff.empty())
-                    {
-                        for (auto it = buff.begin(); it != buff.end();) {
-                            Board nextBoard = board;
-                            nextBoard.move(*it);
-                            if (nextBoard.getBlackChecked()) {
-                                it = buff.erase(it);
-                            }
-                            else {
-                                ++it;
-                            }
-                        }
-                        if (!buff.empty())
-                            moves[glm::ivec2(x, y)] = std::move(buff);
-                    }
-                }
-            return moves;
-        }
-
-        //optimized for ai, since it already needs boards
-        static std::vector<Board> getAllPossibleNextBoardsWhite(const Board& board) {
-            std::vector<Board> boards;
-            boards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                {
-                    if (board.at(glm::ivec2(x, y)).isBlack() || board.at(glm::ivec2(x, y)).isEmpty())
-                        continue;
-                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (!buff.empty())
-                    {
-                        for (auto it = buff.begin(); it != buff.end();) {
-                            Board nextBoard = board;
-                            nextBoard.move(*it);
-                            if (nextBoard.getWhiteChecked()) {
-                                it = buff.erase(it);
-                            }
-                            else {
-                                boards.push_back(std::move(nextBoard));
-                                ++it;
-                            }
-                        }
-                    }
-                }
-            return boards;
-        }
-
-        static std::vector<Board> getAllPossibleNextBoardsBlack(const Board& board) {
-            std::vector<Board> boards;
-            boards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                {
-                    //empty check is actually redundant since isWhite returns true on empty for enum reasons
-                    if (board.at(glm::ivec2(x, y)).isWhite() || board.at(glm::ivec2(x, y)).isEmpty())
-                        continue;
-                    std::vector<Move> buff = getAllPossibleMoves(board, glm::ivec2(x, y));
-                    if (!buff.empty())
-                    {
-                        for (auto it = buff.begin(); it != buff.end();) {
-                            Board nextBoard = board;
-                            nextBoard.move(*it);
-                            if (nextBoard.getBlackChecked()) {
-                                it = buff.erase(it);
-                            }
-                            else {
-                                boards.push_back(std::move(nextBoard));
-                                ++it;
-                            }
-                        }
-                    }
-                }
-            return boards;
-        }
-
-        static inline bool isCellUnderAttackWhite(const Board& board, const glm::ivec2& pos);
-        static inline bool isCellUnderAttackBlack(const Board& board, const glm::ivec2& pos);
-
-    private:
-
-        static std::vector<Move> getWhitePawnMoves(const Board& board, const glm::ivec2& from);
-        static std::vector<Move> getBlackPawnMoves(const Board& board, const glm::ivec2& from);
-
-        static std::vector<Move> getWhiteKnightMoves(const Board& board, const glm::ivec2& from);
-        static std::vector<Move> getBlackKnightMoves(const Board& board, const glm::ivec2& from);
-
-        static std::vector<Move> getWhiteBishopMoves(const Board& board, const glm::ivec2& from);
-        static std::vector<Move> getBlackBishopMoves(const Board& board, const glm::ivec2& from);
-
-        static std::vector<Move> getWhiteRookMoves(const Board& board, const glm::ivec2& from);
-        static std::vector<Move> getBlackRookMoves(const Board& board, const glm::ivec2& from);
-
-        static std::vector<Move> getWhiteQueenMoves(const Board& board, const glm::ivec2& from);
-        static std::vector<Move> getBlackQueenMoves(const Board& board, const glm::ivec2& from);
-
-        static std::vector<Move> getWhiteKingMoves(const Board& board, const glm::ivec2& from);
-        static std::vector<Move> getBlackKingMoves(const Board& board, const glm::ivec2& from);
-
-        static std::vector<Move> getEmptyMoves(const Board& board, const glm::ivec2& from)
-        {
-            return std::vector<Move>();
-        };
-
-        static inline bool checkBoundLeft   (const glm::ivec2& pos) { return pos.x >= BOTTOM_LEFT.x; };
-        static inline bool checkBoundRight  (const glm::ivec2& pos) { return pos.x <= TOP_RIGHT.x;   };
-        static inline bool checkBoundBottom (const glm::ivec2& pos) { return pos.y >= BOTTOM_LEFT.y; };
-        static inline bool checkBoundTop    (const glm::ivec2& pos) { return pos.y <= TOP_RIGHT.y;   };
-
-        template <typename ColorValidator, typename PositionGenerator>
-        static inline void checkDirection(int limit, const Board& board,
-            const Piece& currentPiece,
-            const glm::ivec2& from, std::vector<Move>& moves, 
-            ColorValidator&& friendlyValidator, PositionGenerator&& posGen)
-        {
-            for (int i = 1; i <= limit; i++)
+            for (auto& nextBoard : nextBoards)
             {
-                auto posNext = posGen(i, from);
-                const auto& pieceNext = board.at(posNext);
-                if (friendlyValidator(pieceNext))
-                    break;
-                Move move;
-                move.from = from;
-                move.to = posNext;
-                move.removedPieces.push_back(std::make_pair(from, currentPiece));
-                move.addedPieces.push_back(std::make_pair(posNext,
-                    Piece(currentPiece.piece, currentPiece.moveCounter + 1, board.getTotalMoveCount())));
-                if (!pieceNext.isEmpty())
-                {
-                    move.removedPieces.push_back(std::make_pair(posNext, pieceNext));
-                    moves.push_back(move);
-                    break;
-                }
-                moves.push_back(move);
+                int from;
+                if (nextBoard.getBitBoard().whiteKing != currentBoard.getBitBoard().whiteKing)
+                    from = Chess::Calculator::getFromToPair(
+                        nextBoard.getBitBoard().whiteKing, currentBoard.getBitBoard().whiteKing).first;
+                else if (nextBoard.getBitBoard().whitePawns != currentBoard.getBitBoard().whitePawns)
+                    from = Chess::Calculator::getFromToPair(
+                        nextBoard.getBitBoard().whitePawns, currentBoard.getBitBoard().whitePawns).first;
+                else from = Chess::Calculator::getFromToPairWhite(nextBoard, currentBoard).first;
+                nextMap.insert(std::make_pair(from, std::move(nextBoard)));
             }
+
+            return nextMap;
         }
 
-        template <typename ColorValidator, typename PosGenerator, typename EnemyDetector>
-        static inline bool checkDirectionForEnemy(const Board& board, const glm::ivec2& targetPos,
-            int limit, ColorValidator&& friendlyValidator, PosGenerator&& posGenerator, EnemyDetector&& enemy)
-        {
-            for (int i = 1; i <= limit; i++)
+        static  std::unordered_multimap<int, Board> getNextBoardsBlackMultimap(const Board& currentBoard) {
+
+            std::vector<Board> nextBoards;
+            nextBoards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
+            getBlackPawnsMoves(currentBoard, nextBoards);
+            getBlackKnightsMoves(currentBoard, nextBoards);
+            getBlackBishopsMoves(currentBoard, nextBoards);
+            getBlackRooksMoves(currentBoard, nextBoards);
+            getBlackQueensMoves(currentBoard, nextBoards);
+            getBlackKingMoves(currentBoard, nextBoards);
+
+            std::unordered_multimap<int, Board> nextMap;
+
+            for (auto& nextBoard : nextBoards)
             {
-                auto posNext = posGenerator(i, targetPos);
-                const auto& pieceNext = board.at(posNext);
-
-                if (pieceNext.isEmpty())
-                    continue;
-
-                if (friendlyValidator(pieceNext))
-                    break;
-
-                if (enemy(pieceNext, i))
-                    return true;
-                else break;
-                
+                int from;
+                if (nextBoard.getBitBoard().blackKing != currentBoard.getBitBoard().blackKing)
+                    from = Chess::Calculator::getFromToPair(
+                        nextBoard.getBitBoard().blackKing, currentBoard.getBitBoard().blackKing).first;
+                else if (nextBoard.getBitBoard().blackPawns != currentBoard.getBitBoard().blackPawns)
+                    from = Chess::Calculator::getFromToPair(
+                        nextBoard.getBitBoard().blackPawns, currentBoard.getBitBoard().blackPawns).first;
+                else from = Chess::Calculator::getFromToPairBlack(nextBoard, currentBoard).first;
+                nextMap.insert(std::make_pair(from, std::move(nextBoard)));
             }
-            return false;
+
+            return nextMap;
         }
 
-    private:
-        using MoveFunc = std::vector<Move>(*)(const Board&, const glm::ivec2&);
-        static constexpr std::array<MoveFunc, static_cast<size_t>(Piece::Type::NUM)> moveFuncs = {
-            &getEmptyMoves,             // EMPTY
-            &getWhitePawnMoves,         // WHITE_PAWN
-            &getWhiteKnightMoves,       // WHITE_KNIGHT
-            &getWhiteBishopMoves,       // WHITE_BISHOP
-            &getWhiteRookMoves,         // WHITE_ROOK
-            &getWhiteQueenMoves,        // WHITE_QUEEN
-            &getWhiteKingMoves,         // WHITE_KING
-            &getBlackPawnMoves,         // BLACK_PAWN
-            &getBlackKnightMoves,       // BLACK_KNIGHT
-            &getBlackBishopMoves,       // BLACK_BISHOP
-            &getBlackRookMoves,         // BLACK_ROOK
-            &getBlackQueenMoves,        // BLACK_QUEEN
-            &getBlackKingMoves          // BLACK_KING
-        };
+        static bool isSquareUnderAttackWhite(const Board& board, int square);
+        static bool isSquareUnderAttackBlack(const Board& board, int square);
+
+        //appends moves to the nextBoards
+        static void getWhitePawnsMoves(const Board& board, std::vector<Board>& nextBoards);
+        static void getBlackPawnsMoves(const Board& board, std::vector<Board>& nextBoards);
+
+        static void getWhiteKnightsMoves(const Board& board, std::vector<Board>& nextBoards);
+        static void getBlackKnightsMoves(const Board& board, std::vector<Board>& nextBoards);
+
+        static void getWhiteBishopsMoves(const Board& board, std::vector<Board>& nextBoards);
+        static void getBlackBishopsMoves(const Board& board, std::vector<Board>& nextBoards);
+
+        static void getWhiteRooksMoves(const Board& board, std::vector<Board>& nextBoards);
+        static void getBlackRooksMoves(const Board& board, std::vector<Board>& nextBoards);
+
+        static void getWhiteQueensMoves(const Board& board, std::vector<Board>& nextBoards);
+        static void getBlackQueensMoves(const Board& board, std::vector<Board>& nextBoards);
+
+        static void getWhiteKingMoves(const Board& board, std::vector<Board>& nextBoards);
+        static void getBlackKingMoves(const Board& board, std::vector<Board>& nextBoards);
+
+        static std::pair<int, int> getFromToPairWhite(const Board& nextBoard,
+            const Chess::Board& board)
+        {
+            // For white moves
+            uint64_t currentPieces;
+            uint64_t nextPieces;
+
+            currentPieces = board.getBitBoard().getAllWhitePieces();
+            nextPieces = nextBoard.getBitBoard().getAllWhitePieces();
+
+            // XOR will give us both the 'from' and 'to' squares
+            uint64_t changedSquares = currentPieces ^ nextPieces;
+
+            // The 'from' square will be set in currentWhitePieces but not in nextWhitePieces
+            int fromSquare = std::countr_zero(changedSquares & currentPieces);
+
+            // The 'to' square will be set in nextWhitePieces but not in currentWhitePieces
+            int toSquare = std::countr_zero(changedSquares & nextPieces);
+            return { fromSquare, toSquare };
+        }
+
+        static std::pair<int, int> getFromToPairBlack(const Board& nextBoard,
+            const Chess::Board& board)
+        {
+            // For moves
+            uint64_t currentPieces;
+            uint64_t nextPieces;
+
+            currentPieces = board.getBitBoard().getAllBlackPieces();
+            nextPieces = nextBoard.getBitBoard().getAllBlackPieces();
+
+            // XOR will give us both the 'from' and 'to' squares
+            uint64_t changedSquares = currentPieces ^ nextPieces;
+
+            // The 'from' square will be set in currentWhitePieces but not in nextWhitePieces
+            int fromSquare = std::countr_zero(changedSquares & currentPieces);
+
+            // The 'to' square will be set in nextWhitePieces but not in currentWhitePieces
+            int toSquare = std::countr_zero(changedSquares & nextPieces);
+            return { fromSquare, toSquare };
+        }
+
+        static std::pair<int, int> getFromToPair(uint64_t nextBitBoard, uint64_t bitBoard)
+        {
+            // XOR will give us both the 'from' and 'to' squares
+            uint64_t changedSquares = bitBoard ^ nextBitBoard;
+
+            // The 'from' square will be set in currentWhitePieces but not in nextWhitePieces
+            int fromSquare = std::countr_zero(changedSquares & bitBoard);
+
+            // The 'to' square will be set in nextWhitePieces but not in currentWhitePieces
+            int toSquare = std::countr_zero(changedSquares & nextBitBoard);
+            return { fromSquare, toSquare };
+        }
     };
+
+
 }
