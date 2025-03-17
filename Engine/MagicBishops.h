@@ -228,6 +228,30 @@ namespace Chess
             occupancy >>= bishopMagicTable[square].shift;
             return bishopMagicTable[square].attackTable[occupancy];
         }
+
+        static void initAsync(MT::ThreadPool& pool, std::function<void(float)> callback)
+        {
+            pool.pushTask([callback]() {
+                float progressPerPiece = 1.f / 64;
+                float progress = 0.f;
+                for (int square = 0; square < 64; square++) {
+                    
+                    // Step 1: Generate the mask
+                    bishopMagicTable[square].mask = generateMask(square);
+
+                    // Step 2: Calculate the shift
+                    // Count bits in mask and subtract from 64
+                    int relevantBits = popcnt64(bishopMagicTable[square].mask);
+                    bishopMagicTable[square].shift = 64 - relevantBits;
+
+                    // Step 3: Find appropriate magic number and fill the attack table with correcsponding vector
+                    bishopMagicTable[square].magic = findMagicNumber(square, relevantBits,
+                        bishopMagicTable[square].mask, bishopMagicTable[square].attackTable);
+                    progress += progressPerPiece;
+                    callback(progress);
+                }
+                });
+        }
     };
 
 };

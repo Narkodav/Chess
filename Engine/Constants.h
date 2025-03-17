@@ -16,6 +16,8 @@
 #include <bit>
 #include <iostream>
 
+#include "MultiThreading/ThreadPool.h"
+
 namespace Chess
 {
     // Board orientation constants

@@ -247,11 +247,11 @@ public:
             for (auto it = boardNextBegin; it != boardNextEnd; ++it) {
                 int to;
                 if (it->second.getBitBoard().blackKing != m_board.getBitBoard().blackKing
-                    && m_currentPlayerIsWhite)
+                    && !m_currentPlayerIsWhite)
                     to = Chess::Calculator::getFromToPair(
                         it->second.getBitBoard().blackKing, m_board.getBitBoard().blackKing).second;
                 else if (it->second.getBitBoard().blackPawns != m_board.getBitBoard().blackPawns
-                    && m_currentPlayerIsWhite)
+                    && !m_currentPlayerIsWhite)
                     to = Chess::Calculator::getFromToPair(
                         it->second.getBitBoard().blackPawns, m_board.getBitBoard().blackPawns).second;
                 else to = Chess::Calculator::getFromToPairBlack(it->second, m_board).second;

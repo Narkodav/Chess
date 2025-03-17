@@ -11,6 +11,24 @@
 class Game
 {
 public:
+    enum class LoadingState
+    {
+        CALCULATING_MAGIC_BISHOPS,
+        CALCULATING_MAGIC_ROOKS,
+        LOADING_ASSETS,
+        FINISHED,
+        ERROR,
+        NUM
+    };
+
+    static inline const std::array<std::string, static_cast<size_t>(LoadingState::NUM)> loadingStateStrings = {
+        "Calculating magic bishops...",
+        "Calculating magic rooks...",
+        "Loading assets...",
+        "Finished",
+        "Error"
+    };
+
 	enum class State
 	{
 		MAIN_MENU,
@@ -21,9 +39,13 @@ public:
         GAME_OVER,
 	};
 
+    static inline const float LOADING_EPSILON = 0.0001f;
+
 private:
 
 	State m_gameState = State::MAIN_MENU;
+    std::atomic<LoadingState> m_loadingState;
+
 	GLFWwindow* m_window;
 
 	Renderer m_renderer;
@@ -33,7 +55,7 @@ private:
 	FrameRateCalculator frameRateCalc;
 	Chess::Ai m_ai;
 	MT::ThreadPool m_threadPool; //for async ai
-    size_t m_aiDepth = 1;
+    size_t m_aiDepth = 7;
     bool m_vsAi = false;
     bool m_playerWon = false;
 
@@ -66,6 +88,7 @@ private:
 
 	//key binds
 	void close();
+    void initialise();
 
 public:
 
@@ -331,5 +354,45 @@ public:
         ImGui::PopStyleColor(2);
         ImGui::PopStyleVar(2);  // Pop button text align and window padding
         ImGui::End();
+    }
+
+    void renderLoadingScreen(float globalProgress, float taskProgress) {
+        // Get window dimensions and calculate center
+        ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+
+        // Set window position and size
+        ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(300, 150));  // Made taller for two bars
+
+        // Window styling
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20.0f, 20.0f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, 0.9f));
+
+        ImGui::Begin("##Loading", nullptr,
+            ImGuiWindowFlags_NoTitleBar |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_AlwaysAutoResize |
+            ImGuiWindowFlags_NoInputs);
+
+        // Title
+        ImGui::SetWindowFontScale(1.5f);
+        ImGui::Text("Loading...");
+        ImGui::SetWindowFontScale(1.0f);
+
+        // Overall progress
+        ImGui::Text("Overall Progress");
+        ImGui::ProgressBar(globalProgress, ImVec2(-1, 0), "");
+
+        ImGui::Spacing();
+
+        // Current task status and progress
+        ImGui::Text("%s", loadingStateStrings[static_cast<size_t>(m_loadingState.load())].data());
+        ImGui::ProgressBar(taskProgress, ImVec2(-1, 0), "");
+
+        ImGui::End();
+
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
     }
 };

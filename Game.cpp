@@ -221,7 +221,7 @@ void Game::close()
     glfwSetWindowShouldClose(m_window, GLFW_TRUE);
 }
 
-int Game::run()
+void Game::initialise()
 {
     int loadDistance = 3;
     int numOfAllocatedThreads = /*std::thread::hardware_concurrency() * 0.7*/ 4;
@@ -254,20 +254,68 @@ int Game::run()
     ImGui_ImplOpenGL3_Init("#version 130");
     ImGui::GetStyle().ScaleAllSizes(1.0f);  // Adjust if needed for DPI
 
+    //insignificant inits
+    {
+        auto boardAccess = m_board.getWriteAccess();
+        boardAccess->setBoardRect(m_width, m_height);
+        //float accumulator = 0.f;
+    }
+    
+    frameRateCalc.setFrameTimeBuffer(100);
+    m_threadPool.init(1);
+    m_runtime = 0.f;
+
+    std::atomic<float> globalProgress = 0.f;
+    std::atomic<float> taskProgress = 0.f;
+
+    m_renderer.loadAssets();
+    m_loadingState = LoadingState::CALCULATING_MAGIC_BISHOPS;
+    Chess::MagicBishops::initAsync(m_threadPool, [this, &globalProgress, &taskProgress](float progress) {
+        taskProgress = progress;
+        globalProgress = progress * 0.5f;
+        if (std::abs(progress - 1.0f) < LOADING_EPSILON)
+        {
+            m_loadingState = LoadingState::CALCULATING_MAGIC_ROOKS;
+            Chess::MagicRooks::initAsync(m_threadPool, [this, &globalProgress, &taskProgress](float progress) {
+                taskProgress = progress;
+                globalProgress = progress * 0.5f + 0.5f;
+                if (std::abs(progress - 1.0f) < LOADING_EPSILON)
+                    m_loadingState = LoadingState::FINISHED;
+                });
+        }
+
+        });
+
+    while (!glfwWindowShouldClose(m_window) && m_loadingState != LoadingState::FINISHED)
+    {
+        ImGui::GetIO().DisplaySize = ImVec2((float)m_width, (float)m_height);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        glfwPollEvents();
+        glClearColor(AssetRepository::backgroundColor.x,
+            AssetRepository::backgroundColor.y,
+            AssetRepository::backgroundColor.z,
+            AssetRepository::backgroundColor.w);
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        renderLoadingScreen(globalProgress, taskProgress);
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(m_window);
+
+    }
+}
+
+int Game::run()
+{
+    initialise();
+
     auto currentTime = std::chrono::high_resolution_clock::now();
     float frameRateUpdateCounter = 0.f;
     bool playerWhite = true;
-
-    {
-        auto boardAccess = m_board.getWriteAccess();
-        frameRateCalc.setFrameTimeBuffer(100);
-        m_renderer.loadAssets();
-        boardAccess->setBoardRect(m_width, m_height);
-        //float accumulator = 0.f;
-        m_runtime = 0.f;
-
-        m_threadPool.init(1);
-    }
 
     while (!glfwWindowShouldClose(m_window))
     {

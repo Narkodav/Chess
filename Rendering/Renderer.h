@@ -38,6 +38,27 @@ public:
 			(float)Board::BOARD_HEIGHT, 0.0f, -1.0f, 1.0f);
 	};
 
+	//opengl cant do this asynchronously, need double staged loading
+	//void loadAssetsAsync(MT::ThreadPool& pool, std::function<void(float)> callback)
+	//{
+	//	pool.pushTask([this, callback]() {
+	//		float progressPerPiece = 1.f / 3;
+	//		float progress = 0.f;
+	//		m_assets.loadAssets();
+	//		progress += progressPerPiece;
+	//		callback(progress);
+	//		m_frameBuffer.initializeFramebuffer(Board::BOARD_WIDTH, Board::BOARD_HEIGHT,
+	//			&m_assets.getShader(AssetRepository::Shaders::FLAT_TO_SCREEN));
+	//		progress += progressPerPiece;
+	//		callback(progress);
+	//		m_projection = glm::ortho(0.0f, (float)Board::BOARD_WIDTH,
+	//			(float)Board::BOARD_HEIGHT, 0.0f, -1.0f, 1.0f);
+	//		progress += progressPerPiece;
+	//		callback(progress);
+
+	//		});
+	//}
+
 	void remeshScene(const Board& board, size_t windowWidth, size_t windowHeight);
 	void setHighlight(const Board& board, const Mouse& mouse, size_t windowWidth, size_t windowHeight);
 

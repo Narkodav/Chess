@@ -46,8 +46,6 @@ namespace Chess
         }
     };
 
-    static inline MagicInit magicInit = MagicInit::getInstance();
-
     class Board
     {
     public:
