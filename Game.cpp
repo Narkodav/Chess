@@ -342,18 +342,6 @@ int Game::run()
             auto access = m_board.getWriteAccess();
             if (!access->shouldContinue())
             {
-                //playerWhite = !playerWhite;
-                //m_board.startNewGame(playerWhite);
-                //m_ai.reset(!playerWhite, m_aiDepth);
-                //if (!playerWhite)
-                //{
-                //    m_promise = std::promise<Chess::Move>();
-                //    m_future = m_promise.get_future();
-                //    m_threadPool.pushTask([this]() {
-                //        m_promise.set_value(m_ai.getBestMove(m_board.getBoard()));
-                //        });
-                //    m_waitingForAi = true;
-                //}
                 m_ai.abortAndWait();
                 if (access->getBoard().isBlackChecked() == access->playerIsWhite())
                     m_playerWon = true;

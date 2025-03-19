@@ -34,7 +34,7 @@ public:
             pos.y = 7 - pos.y;
         }
         else pos.x = 7 - pos.x;
-        auto type = m_board.getPieceTypeAtSquare(pos.y * 8 + pos.x);
+        auto type = m_board.getPieceAtSquare(pos.y * 8 + pos.x);
         if (type == Chess::PieceTypes::EMPTY ||
             m_currentPlayerIsWhite && type > Chess::PieceTypes::WHITE_KING ||
            !m_currentPlayerIsWhite && type < Chess::PieceTypes::BLACK_PAWN) {
@@ -70,28 +70,8 @@ public:
             m_chosenPiece.y * 8 + m_chosenPiece.x);
 
         for (auto it = boardNextBegin; it != boardNextEnd; ++it) {
-            int to;
-            //special checks for castling and en passant
-            if (it->second.getBitBoard().whiteKing != m_board.getBitBoard().whiteKing 
-            && m_currentPlayerIsWhite)
-                to = Chess::Calculator::getFromToPair(
-                    it->second.getBitBoard().whiteKing, m_board.getBitBoard().whiteKing).second;
-            else if (it->second.getBitBoard().blackKing != m_board.getBitBoard().blackKing
-                && !m_currentPlayerIsWhite)
-                to = Chess::Calculator::getFromToPair(
-                    it->second.getBitBoard().blackKing, m_board.getBitBoard().blackKing).second;
-            else if (it->second.getBitBoard().whitePawns != m_board.getBitBoard().whitePawns
-                && m_currentPlayerIsWhite)
-                to = Chess::Calculator::getFromToPair(
-                    it->second.getBitBoard().whitePawns, m_board.getBitBoard().whitePawns).second;
-            else if (it->second.getBitBoard().blackPawns != m_board.getBitBoard().blackPawns
-                && !m_currentPlayerIsWhite)
-                to = Chess::Calculator::getFromToPair(
-                    it->second.getBitBoard().blackPawns, m_board.getBitBoard().blackPawns).second;
-            else if (m_currentPlayerIsWhite)
-                to = Chess::Calculator::getFromToPairWhite(it->second, m_board).second;
-            else to = Chess::Calculator::getFromToPairBlack(it->second, m_board).second;
-            if (to == pos.y * 8 + pos.x)
+            auto move = it->second.getLastMove();
+            if (move.toSquare == pos.y * 8 + pos.x)
             {
                 m_board = it->second;
                 m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
@@ -108,12 +88,8 @@ public:
         
     bool makeMove(const Chess::Board& nextBoard)
     {
-        std::pair<int, int> fromTo;
-        if (m_currentPlayerIsWhite)
-            fromTo = Chess::Calculator::getFromToPairWhite(nextBoard, m_board);
-        else fromTo = Chess::Calculator::getFromToPairBlack(nextBoard, m_board);
-
-        const auto& [boardNextBegin, boardNextEnd] = m_nextBoards.equal_range(fromTo.first);
+        auto move = nextBoard.getLastMove();
+        const auto& [boardNextBegin, boardNextEnd] = m_nextBoards.equal_range(move.fromSquare);
 
         for (auto& nextBoardIt : m_nextBoards) {
             if (nextBoardIt.second.getBitBoard().getAllPieces() != nextBoard.getBitBoard().getAllPieces())
@@ -187,21 +163,33 @@ public:
         positions.reserve(32);
 
         if (m_playerIsWhite) //inverted because screen y is opposite to board y
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
+        {
+            for (int i = 1; i < static_cast<size_t>(Chess::PieceTypes::NUM); i++)
+            {
+                auto mask = m_board.getBitBoard().getPieceMask(static_cast<Chess::PieceTypes>(i));
+                while (mask)
                 {
-                    auto type = m_board.getPieceTypeAtSquare(y * 8 + x);
-                    if (type != Chess::PieceTypes::EMPTY)
-                        positions.push_back(std::make_pair(glm::ivec2(x, 7 - y), type));
+                    int square = std::countr_zero(mask);
+                    positions.push_back(std::make_pair(glm::ivec2(square % 8, 7 - square / 8),
+                        static_cast<Chess::PieceTypes>(i)));
+                    mask &= mask - 1;
                 }
+            }
+        }
         else
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
+        {
+            for (int i = 1; i < static_cast<size_t>(Chess::PieceTypes::NUM); i++)
+            {
+                auto mask = m_board.getBitBoard().getPieceMask(static_cast<Chess::PieceTypes>(i));
+                while (mask)
                 {
-                    auto type = m_board.getPieceTypeAtSquare(y * 8 + x);
-                    if (type != Chess::PieceTypes::EMPTY)
-                        positions.push_back(std::make_pair(glm::ivec2(7 - x, y), type));
+                    int square = std::countr_zero(mask);
+                    positions.push_back(std::make_pair(glm::ivec2(7 - square % 8, square / 8),
+                        static_cast<Chess::PieceTypes>(i)));
+                    mask &= mask - 1;
                 }
+            }
+        }
 
         return positions;
     }
@@ -231,31 +219,13 @@ public:
         positions.reserve(32);
         if (m_playerIsWhite)
             for (auto it = boardNextBegin; it != boardNextEnd; ++it) {
-                int to;
-                if (it->second.getBitBoard().whiteKing != m_board.getBitBoard().whiteKing
-                    && m_currentPlayerIsWhite)
-                    to = Chess::Calculator::getFromToPair(
-                        it->second.getBitBoard().whiteKing, m_board.getBitBoard().whiteKing).second;
-                else if (it->second.getBitBoard().whitePawns != m_board.getBitBoard().whitePawns
-                    && m_currentPlayerIsWhite)
-                    to = Chess::Calculator::getFromToPair(
-                        it->second.getBitBoard().whitePawns, m_board.getBitBoard().whitePawns).second;
-                else to = Chess::Calculator::getFromToPairWhite(it->second, m_board).second;
-                positions.push_back(glm::ivec2(to % 8, 7 - to / 8));
+                auto move = it->second.getLastMove();
+                positions.push_back(glm::ivec2(move.toSquare % 8, 7 - move.toSquare / 8));
             }
         else
             for (auto it = boardNextBegin; it != boardNextEnd; ++it) {
-                int to;
-                if (it->second.getBitBoard().blackKing != m_board.getBitBoard().blackKing
-                    && !m_currentPlayerIsWhite)
-                    to = Chess::Calculator::getFromToPair(
-                        it->second.getBitBoard().blackKing, m_board.getBitBoard().blackKing).second;
-                else if (it->second.getBitBoard().blackPawns != m_board.getBitBoard().blackPawns
-                    && !m_currentPlayerIsWhite)
-                    to = Chess::Calculator::getFromToPair(
-                        it->second.getBitBoard().blackPawns, m_board.getBitBoard().blackPawns).second;
-                else to = Chess::Calculator::getFromToPairBlack(it->second, m_board).second;
-                positions.push_back(glm::ivec2(7 - (to % 8), to / 8));
+                auto move = it->second.getLastMove();
+                positions.push_back(glm::ivec2(7 - (move.toSquare % 8), move.toSquare / 8));
             }
 
         return positions;

@@ -152,7 +152,8 @@ namespace Chess
             int bestScore = INT_MIN;
 
             for (const auto& board : possibleBoards) {
-                int score = -minimax(board, m_searchDepth - 1,
+                int score;
+                score = -minimax(board, m_searchDepth - 1,
                     !m_isWhite, -INT_MAX, -bestScore);
 
                 if (score > bestScore) {
@@ -246,29 +247,20 @@ namespace Chess
             constexpr int CAPTURE_BONUS = 10000;  // Base score for captures
 
             int score = 0;
-            bool isCapture = isWhite ?
-                nextBoard.getBitBoard().getAllBlackPieces() != board.getBitBoard().getAllBlackPieces() :
-                nextBoard.getBitBoard().getAllWhitePieces() != board.getBitBoard().getAllWhitePieces();
 
-            std::pair<int, int> fromTo;
-
-            if (isWhite)
-                fromTo = Calculator::getFromToPairWhite(nextBoard, board);
-            else fromTo = Calculator::getFromToPairBlack(nextBoard, board);
+            Board::Move move = nextBoard.getLastMove();
 
             // If it's a capture, score using MVV-LVA
-            auto fromType = board.getPieceTypeAtSquare(fromTo.first);
-            if (isCapture) {
+            if (move.hasFlag(Board::Move::Flags::CAPTURE)) {
                 // Victim value - Attacker value (MVV-LVA)
-                int victimValue = std::abs(pieceValues[static_cast<size_t>(
-                    board.getPieceTypeAtSquare(fromTo.second))]);
-                int attackerValue = std::abs(pieceValues[static_cast<size_t>(fromType)]);
+                int victimValue = std::abs(pieceValues[static_cast<size_t>(move.getCapturedPiece())]);
+                int attackerValue = std::abs(pieceValues[static_cast<size_t>(move.getMovedPiece())]);
                 score = CAPTURE_BONUS + victimValue - (attackerValue / 100);
             }
 
-            // Prefer moves to better squares
-            score += (pieceSquareTables[static_cast<size_t>(fromType)][fromTo.second] -
-                pieceSquareTables[static_cast<size_t>(fromType)][fromTo.first]) / 100;
+            //// Prefer moves to better squares
+            score += (pieceSquareTables[static_cast<size_t>(move.getMovedPiece())][move.toSquare] -
+                pieceSquareTables[static_cast<size_t>(move.getMovedPiece())][move.fromSquare]) / 100;
 
             return score;
         }
@@ -277,12 +269,6 @@ namespace Chess
         void sortBoards(std::vector<Board>& boards, const Chess::Board& board, bool isWhite) {
             std::sort(boards.begin(), boards.end(),
                 [this, &board, &isWhite](const Board& a, const Board& b) {
-                    //if (a.getBitBoard().getAllPieces() == b.getBitBoard().getAllPieces())
-                    //    __debugbreak();
-                    //if (a.getBitBoard().getAllPieces() == board.getBitBoard().getAllPieces())
-                    //    __debugbreak();
-                    //if (board.getBitBoard().getAllPieces() == b.getBitBoard().getAllPieces())
-                    //    __debugbreak();
                     return scoreMoveForOrdering(a, board, isWhite) >
                         scoreMoveForOrdering(b, board, isWhite);
                 });
@@ -290,7 +276,6 @@ namespace Chess
 
         int evaluatePosition(const Chess::Board& board, bool isWhite) {
             int score = 0;
-            auto empty = ~board.getBitBoard().getAllPieces();
             // Material counting
             // Piece positioning
             // Mobility
@@ -298,18 +283,18 @@ namespace Chess
             // Pawn structure
 
             //white pieces
-            score += getPieceScore(board.getBitBoard().whiteBishops, PieceTypes::WHITE_BISHOP);
-            score += getPieceScore(board.getBitBoard().whiteKnights, PieceTypes::WHITE_KNIGHT);
-            score += getPieceScore(board.getBitBoard().whitePawns, PieceTypes::WHITE_PAWN);
-            score += getPieceScore(board.getBitBoard().whiteRooks, PieceTypes::WHITE_ROOK);
-            score += getPieceScore(board.getBitBoard().whiteQueens, PieceTypes::WHITE_QUEEN);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::WHITE_BISHOP), PieceTypes::WHITE_BISHOP);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::WHITE_KNIGHT), PieceTypes::WHITE_KNIGHT);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::WHITE_PAWN), PieceTypes::WHITE_PAWN);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::WHITE_ROOK), PieceTypes::WHITE_ROOK);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::WHITE_QUEEN), PieceTypes::WHITE_QUEEN);
 
             //black pieces
-            score += getPieceScore(board.getBitBoard().blackBishops, PieceTypes::BLACK_BISHOP);
-            score += getPieceScore(board.getBitBoard().blackKnights, PieceTypes::BLACK_KNIGHT);
-            score += getPieceScore(board.getBitBoard().blackPawns, PieceTypes::BLACK_PAWN);
-            score += getPieceScore(board.getBitBoard().blackRooks, PieceTypes::BLACK_ROOK);
-            score += getPieceScore(board.getBitBoard().blackQueens, PieceTypes::BLACK_QUEEN);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::BLACK_BISHOP), PieceTypes::BLACK_BISHOP);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::BLACK_KNIGHT), PieceTypes::BLACK_KNIGHT);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::BLACK_PAWN), PieceTypes::BLACK_PAWN);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::BLACK_ROOK), PieceTypes::BLACK_ROOK);
+            score += getPieceScore(board.getBitBoard().getPieceMask(PieceTypes::BLACK_QUEEN), PieceTypes::BLACK_QUEEN);
             
             return score;
         }

@@ -143,6 +143,7 @@
     <ClCompile Include="Engine\Ai.cpp" />
     <ClCompile Include="Engine\MagicBishops.cpp" />
     <ClCompile Include="Engine\MagicRooks.cpp" />
+    <ClCompile Include="Engine\Flag.cpp" />
     <ClCompile Include="Profiler.cpp" />
     <ClCompile Include="Rendering\FrameBuffer.cpp" />
     <ClCompile Include="Rendering\FlatTexture.cpp" />
@@ -173,6 +174,7 @@
     <ClInclude Include="Engine\Constants.h" />
     <ClInclude Include="Engine\MagicBishops.h" />
     <ClInclude Include="Engine\MagicRooks.h" />
+    <ClInclude Include="Engine\Flag.h" />
     <ClInclude Include="Profiler.h" />
     <ClInclude Include="Rendering\FrameBuffer.h" />
     <ClInclude Include="Rendering\FlatTexture.h" />
