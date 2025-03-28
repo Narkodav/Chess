@@ -15,9 +15,11 @@ public:
 
 private:
     Chess::Board m_board;
-    Rectangle m_boardRect;
+    Rectangle m_boardRect = Rectangle();
 
-    float m_boardTexelSize;
+    std::vector<Chess::Board> m_moveHistory;
+
+    float m_boardTexelSize = 0;
 
     bool m_currentPlayerIsWhite = true; //inverted each step
     bool m_playerIsWhite = true;
@@ -73,6 +75,7 @@ public:
             auto move = it->second.getLastMove();
             if (move.toSquare == pos.y * 8 + pos.x)
             {
+                m_moveHistory.push_back(m_board);
                 m_board = it->second;
                 m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
 
@@ -94,6 +97,7 @@ public:
         for (auto& nextBoardIt : m_nextBoards) {
             if (nextBoardIt.second.getBitBoard().getAllPieces() != nextBoard.getBitBoard().getAllPieces())
                 continue;
+            m_moveHistory.push_back(m_board);
             m_board = nextBoardIt.second;
             m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
 
@@ -105,6 +109,36 @@ public:
         }
         __debugbreak();
         return false;
+    }
+
+    bool revert()
+    {
+        if (m_moveHistory.size() == 0)
+            return false;
+
+        m_board = m_moveHistory.back();
+        m_moveHistory.pop_back();
+        m_currentPlayerIsWhite = !m_currentPlayerIsWhite;
+        if (m_currentPlayerIsWhite)
+            m_nextBoards = std::move(Chess::Calculator::getNextBoardsWhiteMultimap(m_board));
+        else
+            m_nextBoards = std::move(Chess::Calculator::getNextBoardsBlackMultimap(m_board));
+        return true;
+    }
+
+    bool revertDouble()
+    {
+        if (m_moveHistory.size() < 2)
+            return false;
+
+        m_moveHistory.pop_back();
+        m_board = m_moveHistory.back();
+        m_moveHistory.pop_back();
+        if (m_currentPlayerIsWhite)
+            m_nextBoards = std::move(Chess::Calculator::getNextBoardsWhiteMultimap(m_board));
+        else
+            m_nextBoards = std::move(Chess::Calculator::getNextBoardsBlackMultimap(m_board));
+        return true;
     }
 
     void startNewGame(bool isWhite) {

@@ -55,10 +55,9 @@ private:
 	FrameRateCalculator frameRateCalc;
 	Chess::Ai m_ai;
 	MT::ThreadPool m_threadPool; //for async ai
-    size_t m_aiDepth = 7;
+    size_t m_aiDepth = 4;
     bool m_vsAi = false;
     bool m_playerWon = false;
-
 
 	float m_frameTime, m_runtime;
 	float m_aspectRatio;

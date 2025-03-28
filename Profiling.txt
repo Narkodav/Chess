@@ -1,33 +1,139 @@
+Profiling Results for ID 29160:
 ==================
 Board sorting:
-  Total time: 98.6011ms
-  Calls: 1877
-  Avg time: 0.0525312ms
-  Min time: 0.0167ms
-  Max time: 0.2172ms
-  Std Dev: 0.0119683ms
+  Total time: 6.0196ms
+  Calls: 522
+  Avg time: 0.0115318ms
+  Min time: 0.0067ms
+  Max time: 0.3636ms
+  Std Dev: 0.0163249ms
 ==================
 Possible boards generation:
-  Total time: 1069.55ms
-  Calls: 1877
-  Avg time: 0.569816ms
-  Min time: 0.4374ms
-  Max time: 1.1306ms
-  Std Dev: 0.107592ms
+  Total time: 24.2334ms
+  Calls: 522
+  Avg time: 0.0464241ms
+  Min time: 0.0294ms
+  Max time: 0.2517ms
+  Std Dev: 0.0155495ms
 ==================
 Position evaluation:
-  Total time: 129.589ms
-  Calls: 21065
-  Avg time: 0.00615186ms
-  Min time: 0.0058ms
-  Max time: 0.0291ms
-  Std Dev: 0.000482235ms
+  Total time: 2.2435ms
+  Calls: 888
+  Avg time: 0.00252646ms
+  Min time: 0.0023ms
+  Max time: 0.0882ms
+  Std Dev: 0.00287896ms
 ==================
 Ai move selection:
-  Total time: 1459.74ms
+  Total time: 42.3831ms
   Calls: 1
-  Avg time: 1459.74ms
-  Min time: 1459.74ms
-  Max time: 1459.74ms
+  Avg time: 42.3831ms
+  Min time: 42.3831ms
+  Max time: 42.3831ms
+  Std Dev: 0ms
+==================
+
+Profiling Results for ID 29160:
+==================
+Board sorting:
+  Total time: 8.9415ms
+  Calls: 738
+  Avg time: 0.0121159ms
+  Min time: 0.003ms
+  Max time: 0.1262ms
+  Std Dev: 0.00944605ms
+==================
+Possible boards generation:
+  Total time: 37.5967ms
+  Calls: 738
+  Avg time: 0.050944ms
+  Min time: 0.0269ms
+  Max time: 0.4425ms
+  Std Dev: 0.0247193ms
+==================
+Position evaluation:
+  Total time: 5.8353ms
+  Calls: 2235
+  Avg time: 0.00261087ms
+  Min time: 0.0023ms
+  Max time: 0.3785ms
+  Std Dev: 0.00801608ms
+==================
+Ai move selection:
+  Total time: 70.9137ms
+  Calls: 1
+  Avg time: 70.9137ms
+  Min time: 70.9137ms
+  Max time: 70.9137ms
+  Std Dev: 0ms
+==================
+
+Profiling Results for ID 29160:
+==================
+Board sorting:
+  Total time: 6.5188ms
+  Calls: 575
+  Avg time: 0.011337ms
+  Min time: 0.0034ms
+  Max time: 0.0809ms
+  Std Dev: 0.00345545ms
+==================
+Possible boards generation:
+  Total time: 30.0849ms
+  Calls: 575
+  Avg time: 0.0523216ms
+  Min time: 0.0293ms
+  Max time: 0.456ms
+  Std Dev: 0.0324504ms
+==================
+Position evaluation:
+  Total time: 2.6771ms
+  Calls: 1087
+  Avg time: 0.00246283ms
+  Min time: 0.0022ms
+  Max time: 0.0464ms
+  Std Dev: 0.00135238ms
+==================
+Ai move selection:
+  Total time: 50.1089ms
+  Calls: 1
+  Avg time: 50.1089ms
+  Min time: 50.1089ms
+  Max time: 50.1089ms
+  Std Dev: 0ms
+==================
+
+Profiling Results for ID 29160:
+==================
+Board sorting:
+  Total time: 7.2425ms
+  Calls: 588
+  Avg time: 0.0123172ms
+  Min time: 0.0027ms
+  Max time: 0.4068ms
+  Std Dev: 0.0178537ms
+==================
+Possible boards generation:
+  Total time: 29.5006ms
+  Calls: 588
+  Avg time: 0.0501711ms
+  Min time: 0.0309ms
+  Max time: 0.3351ms
+  Std Dev: 0.0186153ms
+==================
+Position evaluation:
+  Total time: 1.5129ms
+  Calls: 621
+  Avg time: 0.00243623ms
+  Min time: 0.0022ms
+  Max time: 0.0039ms
+  Std Dev: 0.000114874ms
+==================
+Ai move selection:
+  Total time: 46.8889ms
+  Calls: 1
+  Avg time: 46.8889ms
+  Min time: 46.8889ms
+  Max time: 46.8889ms
   Std Dev: 0ms
 ==================

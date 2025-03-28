@@ -90,12 +90,6 @@
     <ClCompile Include="Engine\Chess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\MagicBishops.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Engine\MagicRooks.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Engine\Flag.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -182,13 +176,13 @@
     <ClInclude Include="Engine\Chess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\MagicBishops.h">
+    <ClInclude Include="Engine\Flag.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\MagicRooks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Flag.h">
+    <ClInclude Include="Engine\MagicBishops.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

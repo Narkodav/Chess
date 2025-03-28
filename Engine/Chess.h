@@ -34,20 +34,6 @@ namespace Chess
         NUM
     };
 
-    struct MagicInit {
-        static MagicInit& getInstance() {
-            static MagicInit instance;
-            return instance;
-        }
-    private:
-        MagicInit() {
-            MagicBishops::initializeMagics();
-            MagicRooks::initializeMagics();
-            MagicBishops::debugMagicNumber(4);
-            MagicRooks::debugMagicNumber(4);
-        }
-    };
-
     class Board
     {
     public:
@@ -303,35 +289,11 @@ namespace Chess
             std::vector<Board> nextBoards;
             nextBoards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
             getWhitePawnMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getWhiteKnightMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getWhiteBishopMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getWhiteRookMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getWhiteQueenMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getWhiteKingMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             return nextBoards;
         }
 
@@ -340,35 +302,11 @@ namespace Chess
             std::vector<Board> nextBoards;
             nextBoards.reserve(MAXIMUM_CONSERVATIVE_MOVE_AMOUNT);
             getBlackPawnMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getBlackKnightMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getBlackBishopMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getBlackRookMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getBlackQueenMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             getBlackKingMoves(currentBoard, nextBoards);
-            for (i; i < nextBoards.size(); i++)
-                if (nextBoards[i].getLastMove().fromSquare == 64 ||
-                    nextBoards[i].getLastMove().toSquare == 64)
-                    __debugbreak();
             return nextBoards;
         }
 

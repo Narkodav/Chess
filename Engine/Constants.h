@@ -15,6 +15,7 @@
 #include <array>
 #include <bit>
 #include <iostream>
+#include <span>
 
 #include "MultiThreading/ThreadPool.h"
 
@@ -341,11 +342,13 @@ namespace Chess
     static inline const uint64_t BLACK_KINGSIDE_CASTLING_ROOK_END = 0x2000000000000000ULL;  // f8
     static inline const uint64_t BLACK_QUEENSIDE_CASTLING_ROOK_END = 0x0800000000000000ULL;  // d8
 
-    //fuck you whoever invented these
-    struct Magic {
-        std::vector<uint64_t> attackTable;  // pointer to attack_table for each particular square
-        uint64_t mask;                      // to mask relevant squares of both lines (no outer squares)
-        uint64_t magic;                     // magic 64-bit factor
-        int shift;                          // shift right
+    struct Magic
+    {
+        uint64_t mask;
+        uint64_t magic;
+        int shift;
+        //std::span<const uint64_t> tableView;
+        size_t offset;  // offset into attackTable
     };
+
 }

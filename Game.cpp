@@ -100,14 +100,16 @@ break \
 void Game::keyPressCallback(int key, int scancode, int action, int mods)
 {
     bool virtualKeyState = (action != GLFW_RELEASE);
+
     switch (key)
-    {
-        
+    {        
         CHECK_KEY(GLFW_KEY_W, Keyboard::Keys::KEY_W, virtualKeyState);
         CHECK_KEY(GLFW_KEY_S, Keyboard::Keys::KEY_S, virtualKeyState);
         CHECK_KEY(GLFW_KEY_A, Keyboard::Keys::KEY_A, virtualKeyState);
         CHECK_KEY(GLFW_KEY_D, Keyboard::Keys::KEY_D, virtualKeyState);
+        CHECK_KEY(GLFW_KEY_Z, Keyboard::Keys::KEY_Z, virtualKeyState);
         CHECK_KEY(GLFW_KEY_LEFT_SHIFT, Keyboard::Keys::KEY_SHIFT, virtualKeyState);
+        CHECK_KEY(GLFW_KEY_LEFT_CONTROL, Keyboard::Keys::KEY_CTRL, virtualKeyState);
         CHECK_KEY(GLFW_KEY_SPACE, Keyboard::Keys::KEY_SPACE, virtualKeyState);
         CHECK_KEY(GLFW_KEY_ESCAPE, Keyboard::Keys::KEY_ESC, virtualKeyState);
     }
@@ -151,10 +153,21 @@ void Game::processInputs()
         }
     }
 
-    for (int i = 0; i < static_cast<size_t>(Keyboard::Keys::KEY_COUNT); i++)
-        m_keyboard.m_keys[i].isChanged = false;
-
-    if (m_gameState == State::PLAYING)
+    if (m_keyboard.m_keys[static_cast<size_t>(Keyboard::Keys::KEY_CTRL)].state &&
+        m_keyboard.m_keys[static_cast<size_t>(Keyboard::Keys::KEY_Z)].state &&
+        (m_keyboard.m_keys[static_cast<size_t>(Keyboard::Keys::KEY_CTRL)].isChanged ||
+            m_keyboard.m_keys[static_cast<size_t>(Keyboard::Keys::KEY_Z)].isChanged) &&
+        m_gameState == State::PLAYING)
+    {
+        m_ai.abortAndWait();
+        auto access = m_board.getWriteAccess();
+        if (access->revertDouble() && access->playerIsWhite() != access->currentPlayerIsWhite() && access->shouldContinue())
+        {
+            m_ai.getBestMoveAsync(access->getBoard(), m_threadPool,
+                [this](Chess::Board nextBoard) {asyncMoveCallback(nextBoard); });
+        }
+    }
+    else if (m_gameState == State::PLAYING)
     {
         auto access = m_board.getWriteAccess();
         if (m_mouse.LMB.isChanged && m_mouse.LMB.state &&
@@ -166,6 +179,8 @@ void Game::processInputs()
         }
     }
 
+    for (int i = 0; i < static_cast<size_t>(Keyboard::Keys::KEY_COUNT); i++)
+        m_keyboard.m_keys[i].isChanged = false;
     m_mouse.LMB.isChanged = false;
     m_mouse.RMB.isChanged = false;
     m_mouse.scrollWheel.isChanged = false;
@@ -269,22 +284,7 @@ void Game::initialise()
     std::atomic<float> taskProgress = 0.f;
 
     m_renderer.loadAssets();
-    m_loadingState = LoadingState::CALCULATING_MAGIC_BISHOPS;
-    Chess::MagicBishops::initAsync(m_threadPool, [this, &globalProgress, &taskProgress](float progress) {
-        taskProgress = progress;
-        globalProgress = progress * 0.5f;
-        if (std::abs(progress - 1.0f) < LOADING_EPSILON)
-        {
-            m_loadingState = LoadingState::CALCULATING_MAGIC_ROOKS;
-            Chess::MagicRooks::initAsync(m_threadPool, [this, &globalProgress, &taskProgress](float progress) {
-                taskProgress = progress;
-                globalProgress = progress * 0.5f + 0.5f;
-                if (std::abs(progress - 1.0f) < LOADING_EPSILON)
-                    m_loadingState = LoadingState::FINISHED;
-                });
-        }
-
-        });
+    m_loadingState = LoadingState::FINISHED;
 
     while (!glfwWindowShouldClose(m_window) && m_loadingState != LoadingState::FINISHED)
     {
